@@ -8,6 +8,11 @@ import {Store} from '../electron/storage';
 import {Service} from '../electron/service';
 import {DAY} from '../electron/core';
 import type {Job} from '../shared/types';
+test('named projects keep their chosen name separately from the source title',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-name-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});service.stopping=true;service.readiness=async()=>({ready:true,missing:[]});
+ try{const id=await service.create({kind:'url',value:'https://youtu.be/example',name:'  My podcast  '});const job=store.get(id);assert.equal(job?.name,'My podcast');assert.equal(job?.title,'Linked video');assert.equal(job?.stage,'queued');}
+ finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});
 test('expired completed workspace is cleaned, unsaved reels are retained',async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-life-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});
  try{await service.init();const id=randomUUID(),file=path.join(service.out(id),'reelmind_01.mp4');await fs.mkdir(service.work(id),{recursive:true});await fs.mkdir(service.out(id),{recursive:true});await fs.writeFile(path.join(service.work(id),'source.mp4'),'source');await fs.writeFile(file,'finished');await fs.writeFile(file+'.partial.mp4','incomplete');

@@ -14,9 +14,9 @@ export class Service {
   saving=new Set<string>();
   allowedInputs=new Set<string>();
   stopping=false;
-  renderHardware={nvenc:false,cpuThreads:Math.max(2,Math.min(6,Math.floor(os.cpus().length/2)))};
+  renderHardware={nvenc:false,cudaSpeechCandidate:false,cpuThreads:Math.max(2,Math.min(6,Math.floor(os.cpus().length/2)))};
   constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){}
-  configureHardware(vramMb:number){this.renderHardware.nvenc=vramMb>=2048;if(vramMb&&vramMb<4096)this.renderHardware.cpuThreads=Math.min(4,this.renderHardware.cpuThreads);}
+  configureHardware(vramMb:number){this.renderHardware.nvenc=vramMb>=2048;this.renderHardware.cudaSpeechCandidate=vramMb>=4096;if(vramMb&&vramMb<4096)this.renderHardware.cpuThreads=Math.min(4,this.renderHardware.cpuThreads);}
   work(id:string){if(!/^[\da-f-]{36}$/.test(id))throw new Error('Invalid project');return path.join(this.root,'work',id);}
   out(id:string){this.work(id);return path.join(this.root,'outputs',id);}
   update(job:Job,patch:Partial<Job>){Object.assign(job,patch,{updatedAt:this.store.now()});this.store.put(job);this.changed();}
@@ -28,7 +28,7 @@ export class Service {
     if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
     if(input.kind==='url')input.value=validateUrl(input.value);
     else if(!this.allowedInputs.has(input.value))throw new Error('Choose your local video with the file picker.');
-    const now=this.store.now();const job:Job={id:randomUUID(),title:input.kind==='local'?path.basename(input.value):'Linked video',input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local'};
+    const now=this.store.now();const title=input.kind==='local'?path.basename(input.value):'Linked video';const job:Job={id:randomUUID(),name:input.name?.trim()||title,title,input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
     this.store.put(job);this.changed();this.pump();return job.id;
   }
   pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}
@@ -70,7 +70,7 @@ export class Service {
       phase('transcribing',12,'Listening locally · English, Hindi and Japanese');
       const transcriptFile=path.join(work,'transcript.json');
       let transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments)&&d.segments.length,async()=>{
-        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models')],{signal,progress:line=>{try{const p=JSON.parse(line);this.update(job,{progress:12+p.progress*30,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(transcriptFile,'utf8'));
+        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models'),...(this.renderHardware.cudaSpeechCandidate?['--gpu']:[])],{signal,progress:line=>{try{const p=JSON.parse(line);if(p.fallback){this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),p.fallback])],message:p.message});}else this.update(job,{progress:12+p.progress*30,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       });
       phase('framing',43,'Matching voices and finding faces');
       const frames=await this.checkpoint<Frame[]>(path.join(work,'frames.json'),d=>Array.isArray(d),async()=>{
@@ -79,7 +79,7 @@ export class Service {
       await this.seal(transcriptFile);
       transcript=JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       phase('analyzing',54,'Finding moments across the entire video');
-      const candidates=await this.checkpoint<Candidate[]>(path.join(work,'candidates.json'),d=>Array.isArray(d)&&d.every(c=>c.end-c.start>=30&&c.end-c.start<=60),()=>analyze(transcript,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':message.startsWith('OpenRouter')?'OpenRouter':message.startsWith('Local')?'Local':job.provider})));
+      const candidates=await this.checkpoint<Candidate[]>(path.join(work,'candidates.json'),d=>Array.isArray(d)&&d.every(c=>c.end-c.start>=30&&c.end-c.start<=60),()=>analyze(transcript,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':message.startsWith('OpenRouter')?'OpenRouter':message.startsWith('Local')?'Local':job.provider,fallbacks:message.startsWith('Fallback · ')?[...new Set([...(job.fallbacks||[]),message.slice('Fallback · '.length)])]:job.fallbacks})));
       if(!candidates.length){this.update(job,{stage:'completed',progress:100,message:'No strong 30–60 second moments found. Try a different video.',cleanupAt:this.store.now()+DAY});this.notify(job);return;}
       phase('rendering',62,`Creating ${candidates.length} Reels`);
       // Batches contain three clips; render one at a time to bound filter memory.
@@ -88,7 +88,7 @@ export class Service {
         const previous=job.outputs.find(r=>r.id===id);if(previous&&await exists(file)){try{await probe(this.runtime,file,signal);continue;}catch{}}
         const plan=planEdit(candidates[i],transcript,frames,media.fps);const clipWork=path.join(work,'clip_'+id);await fs.mkdir(clipWork,{recursive:true});await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
         this.update(job,{message:`Batch ${Math.floor(batch/3)+1} · rendering Reel ${i+1} of ${candidates.length}`});
-        const partial=file+'.partial.mp4';await render(this.runtime,source,plan,partial,clipWork,this.store.settings().quality,this.renderHardware,signal,n=>this.update(job,{progress:62+(i+n)/candidates.length*37}));await fs.rename(partial,file);
+        const partial=file+'.partial.mp4';await render(this.runtime,source,plan,partial,clipWork,this.store.settings().quality,this.renderHardware,signal,n=>this.update(job,{progress:62+(i+n)/candidates.length*37}),message=>this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),message])],message}));await fs.rename(partial,file);
         job.outputs=job.outputs.filter(r=>r.id!==id);job.outputs.push({id,title:candidates[i].hook.slice(0,100),duration:plan.duration,file,reason:candidates[i].reason});this.update(job,{outputs:job.outputs});
       }}
       this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:this.store.now()+DAY});this.notify(job);

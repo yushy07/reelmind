@@ -1,0 +1,10 @@
+.project-name-field{display:block;margin-bottom:22px}
+.project-name-field input{margin:9px 0 7px}
+.project-name-field small{display:block;letter-spacing:0;line-height:1.5}
+.working-projects{margin-bottom:28px}
+.working-projects .project-row{border-color:#5b4674;background:#201a2b}
+.row-progress{display:block;width:min(100%,480px);height:5px;margin:9px 0 0}
+.quiet-list{padding:16px 0;font-size:11px}
+.fallback-history{border:1px solid #51425f;background:#211a2b;border-radius:10px;padding:15px 19px;margin:0 0 18px;color:#d9c4ef;font-size:12px}
+.fallback-history ul{margin:9px 0;padding-left:19px;line-height:1.7;color:#b7a8c4}
+.fallback-history small{color:#9e91ac}

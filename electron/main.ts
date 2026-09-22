@@ -15,7 +15,11 @@ let window:BrowserWindow;let service:Service;let closing=false;
 const setup:Status['setup']={running:false,message:''};
 const keyPresence:Record<Provider,boolean>={gemini:false,openrouter:false};
 let hardware='Checking hardware…';
-function changed(){if(window&&!window.isDestroyed())window.webContents.send('changed');}
+function changed(){if(window&&!window.isDestroyed()){
+  const active=service?.store.jobs().find(job=>['importing','transcribing','framing','analyzing','rendering'].includes(job.stage));
+  window.setProgressBar(active?Math.max(.01,Math.min(.99,active.progress/100)):-1);
+  window.webContents.send('changed');
+}}
 if(!app.requestSingleInstanceLock())app.quit();
 app.on('second-instance',()=>{window?.show();window?.focus();});
 app.whenReady().then(async()=>{
@@ -40,7 +44,7 @@ app.whenReady().then(async()=>{
   const handle=(name:string,fn:(...args:any[])=>any)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted request');return fn(...args);});
   handle('status',async()=>({jobs:store.jobs(),settings:store.settings(),keys:keyPresence,runtime:await service.readiness(),hardware,setup} satisfies Status));
   handle('pick-video',async()=>{const result=await dialog.showOpenDialog(window,{title:'Choose a video',properties:['openFile'],filters:[{name:'Video',extensions:['mp4','mov','mkv','avi','webm']}]});const file=result.filePaths[0];if(result.canceled||!file)return null;service.allowedInputs.add(file);return file;});
-  handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096)}).strict().parse(input)));
+  handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096),name:z.string().trim().max(80).optional()}).strict().parse(input)));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
   handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
   handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
