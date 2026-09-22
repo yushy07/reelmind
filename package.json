@@ -19,7 +19,8 @@
     "setup:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-runtime.ps1",
     "notices": "node scripts/generate-notices.mjs",
     "package": "npm run notices && npm run build && node scripts/check-runtime.mjs && electron-builder --win nsis",
-    "package:dir": "npm run build && node scripts/check-runtime.mjs && electron-builder --win --dir"
+    "package:dir": "npm run build && node scripts/check-runtime.mjs && electron-builder --win --dir",
+    "publish:release": "node scripts/publish-release.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
