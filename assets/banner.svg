@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400">
+<defs><linearGradient id="bg"><stop stop-color="#191125"/><stop offset="1" stop-color="#0e0e14"/></linearGradient><linearGradient id="purple" x2="1" y2="1"><stop stop-color="#d4b8ff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+<rect width="1200" height="400" rx="24" fill="url(#bg)"/>
+<circle cx="1070" cy="205" r="275" fill="none" stroke="#2d223c"/><circle cx="1070" cy="205" r="225" fill="none" stroke="#2d223c"/>
+<rect x="76" y="77" width="80" height="80" rx="20" fill="#251b34" stroke="#58406e"/>
+<path d="M95 137V97H121C134 97 140 103 140 112C140 120 136 124 130 126L141 137H127L116 124H106V137ZM106 106V115H120C125 115 129 114 129 110C129 107 125 106 120 106Z" fill="url(#purple)"/>
+<text x="178" y="134" fill="#f5efff" font-family="Segoe UI,Arial,sans-serif" font-size="50" font-weight="700">reelmind.</text>
+<text x="76" y="235" fill="#f5efff" font-family="Segoe UI,Arial,sans-serif" font-size="48" font-weight="700">Long videos. Strong moments.</text>
+<text x="78" y="280" fill="#b8acc8" font-family="Segoe UI,Arial,sans-serif" font-size="22">Your footage. Your machine. Your next Reel.</text>
+<text x="78" y="343" fill="#bd99ff" font-family="Segoe UI,Arial,sans-serif" font-size="14" letter-spacing="3">WINDOWS • LOCAL-FIRST • NO SUBSCRIPTION</text>
+<g transform="translate(925 72) rotate(9 70 124)"><rect width="140" height="248" rx="24" fill="#22192f" stroke="#8961ba" stroke-width="2"/><rect x="12" y="12" width="116" height="224" rx="16" fill="#352345"/><path d="M53 85L98 116L53 147Z" fill="url(#purple)"/><rect x="26" y="179" width="88" height="9" rx="4" fill="#d4b8ff"/><rect x="41" y="195" width="58" height="7" rx="3" fill="#8c70a4"/></g>
+</svg>

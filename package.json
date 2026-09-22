@@ -1,0 +1,88 @@
+{
+  "name": "reelmind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A personal, local-first Instagram Reels studio",
+  "author": "Ayush Kant",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/yushy07/reelmind.git" },
+  "homepage": "https://github.com/yushy07/reelmind#readme",
+  "bugs": { "url": "https://github.com/yushy07/reelmind/issues" },
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/build.mjs",
+    "start": "electron .",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "setup:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-runtime.ps1",
+    "package": "npm run build && node scripts/check-runtime.mjs && electron-builder --win nsis",
+    "package:dir": "npm run build && node scripts/check-runtime.mjs && electron-builder --win --dir"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.25.0",
+    "sharp": "^0.35.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0"
+  },
+  "build": {
+    "appId": "studio.reelmind.desktop",
+    "productName": "REELMIND",
+    "copyright": "Copyright 2026 Ayush Kant",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*",
+      "THIRD_PARTY.md",
+      "LICENSE",
+      "NOTICE",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/.cache/**",
+          "!python.zip",
+          "!get-pip.py",
+          "!python/Scripts/**",
+          "!python/Lib/site-packages/pip/**"
+        ]
+      },
+      {
+        "from": "workers",
+        "to": "workers"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "license": "LICENSE",
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
