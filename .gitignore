@@ -4,7 +4,11 @@ dist-electron/
 release/
 runtime/
 .test-data/
+work/
+outputs/
+cache/
 *.log
+*.dmp
 .env*
 !.env.example
 Pasted text.txt
@@ -17,6 +21,22 @@ VALIDATION.md
 *.p12
 credentials.json
 secrets.json
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.wav
+*.mp3
+*.m4a
+*.srt
+*.ass
+*.exe
+*.msi
+*.zip
+*.7z
+*.onnx
+*.bin
 __pycache__/
 *.py[cod]
 .cache/

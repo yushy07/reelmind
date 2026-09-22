@@ -10,7 +10,7 @@ const patterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/,
   /(?:ghp_|github_pat_)[A-Za-z0-9_]{30,}/,
 ];
-const privatePath = /^(?:runtime|release|dist|dist-electron|node_modules|\.test-data)\/|(?:^|\/)(?:\.env(?:\..+)?|credentials\.json|secrets\.json)$|\.(?:sqlite(?:-wal|-shm)?|db|pfx|p12|pem|key|mp4|mov|mkv|webm|avi)$/i;
+const privatePath = /^(?:runtime|release|dist|dist-electron|node_modules|\.test-data|work|outputs|cache)\/|(?:^|\/)(?:\.env(?:\..+)?|credentials\.json|secrets\.json)$|\.(?:sqlite(?:-wal|-shm)?|db|pfx|p12|pem|key|mp4|mov|mkv|webm|avi|wav|mp3|m4a|srt|ass|exe|msi|zip|7z|onnx|bin|dmp)$/i;
 const violations = [];
 for (const file of files) {
   if (privatePath.test(file) && !file.endsWith('.env.example')) {violations.push(file); continue;}
