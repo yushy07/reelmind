@@ -8,7 +8,7 @@ A personal Windows desktop studio for turning long videos into Instagram Reels. 
 
 ## Run
 
-For an existing Windows build, run `REELMIND Setup 0.1.0.exe`. The installer is generated locally; a public binary release is not published yet. The unsigned installer may trigger Windows SmartScreen.
+Download [REELMIND V1 v0.1.0 for Windows](https://github.com/yushy07/reelmind/releases/tag/v0.1.0) and run `REELMIND Setup 0.1.0.exe`. This personal-use V1 is published as a prerelease. The installer is unsigned, so Windows SmartScreen may display a warning.
 
 On a fresh development machine:
 
