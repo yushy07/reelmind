@@ -6,7 +6,7 @@ export interface Transcript { version:1; duration:number; language:string; segme
 export interface Candidate { start:number; end:number; hook:string; context:string; payoff:string; category:string; reason:string; score:number }
 export interface Face { x:number; y:number; w:number; h:number; confidence:number; track:number; motion:number }
 export interface Frame { time:number; faces:Face[]; activeTrack?:number; confidence:number }
-export interface EditPlan { version:1; candidate:Candidate; words:Word[]; shots:{start:number;end:number;center:number;layout:'portrait'|'fit'|'split';centers?:number[];zoom:number}[]; cuts:{start:number;end:number}[]; duration:number; captions:string; fps:number; audio:{sourceOnly:true;lufs:number} }
+export interface EditPlan { version:2; candidate:Candidate; words:Word[]; shots:{start:number;end:number;center:number;endCenter:number;layout:'portrait'|'fit'|'split';centers?:number[];zoom:number;transition:'cut'|'punch'|'reframe'}[]; cuts:{start:number;end:number}[]; duration:number; captions:string; fps:30|60; audio:{sourceOnly:true;lufs:number} }
 export interface Reel { id:string; title:string; duration:number; file:string; savedPath?:string; reason:string }
 export interface Job { id:string; title:string; input:{kind:'local'|'url';value:string}; stage:Stage; checkpoint:Stage; progress:number; message:string; createdAt:number; updatedAt:number; cleanupAt?:number; workingDeleted?:boolean; outputs:Reel[]; provider:string; error?:string; duration?:number }
 export interface Settings { providerOrder:Provider[]; geminiModel:string; openrouterModel:string; quality:'balanced'|'high'; cloudEnabled:boolean; geminiFreeConfirmed:boolean }

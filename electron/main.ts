@@ -52,7 +52,7 @@ app.whenReady().then(async()=>{
   });
   await service.init();
   if(!selfTest)for(const p of ['gemini','openrouter'] as const)keyPresence[p]=!!await service.key(p).catch(()=>'');
-  void run('nvidia-smi',['--query-gpu=name,memory.total','--format=csv,noheader']).then(value=>{hardware=value.trim();changed();}).catch(()=>{hardware='CPU encoding available · NVIDIA GPU not detected';changed();});
+  try{const value=await run('nvidia-smi',['--query-gpu=name,memory.total','--format=csv,noheader,nounits']);const fields=value.trim().split(',');const vram=Number(fields.at(-1)?.trim()||0);service.configureHardware(vram);hardware=`${fields.slice(0,-1).join(',').trim()} · ${Math.round(vram/1024)} GB VRAM · ${vram>=2048?'NVENC enabled':'CPU encoding'}`;}catch{hardware='CPU encoding available · NVIDIA GPU not detected';}changed();
   setInterval(()=>void service.cleanup().catch(()=>{}),60_000).unref();
   if(process.env.REELMIND_DEV_URL&&!app.isPackaged)await window.loadURL('http://127.0.0.1:5173');else await window.loadFile(path.join(app.getAppPath(),'dist/index.html'));
   if(selfTest){

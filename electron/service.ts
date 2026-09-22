@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import os from 'node:os';
 import { Store, atomicJSON, removeWorkspace, externalDirectory, hash } from './storage';
 import { DAY, validateUrl, planEdit } from './core';
 import { analyze } from './providers';
@@ -13,34 +14,37 @@ export class Service {
   saving=new Set<string>();
   allowedInputs=new Set<string>();
   stopping=false;
+  renderHardware={nvenc:false,cpuThreads:Math.max(2,Math.min(6,Math.floor(os.cpus().length/2)))};
   constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){}
+  configureHardware(vramMb:number){this.renderHardware.nvenc=vramMb>=2048;if(vramMb&&vramMb<4096)this.renderHardware.cpuThreads=Math.min(4,this.renderHardware.cpuThreads);}
   work(id:string){if(!/^[\da-f-]{36}$/.test(id))throw new Error('Invalid project');return path.join(this.root,'work',id);}
   out(id:string){this.work(id);return path.join(this.root,'outputs',id);}
-  update(job:Job,patch:Partial<Job>){Object.assign(job,patch,{updatedAt:Date.now()});this.store.put(job);this.changed();}
+  update(job:Job,patch:Partial<Job>){Object.assign(job,patch,{updatedAt:this.store.now()});this.store.put(job);this.changed();}
   async key(p:Provider){return run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(this.workers,'credentials.ps1')],{input:JSON.stringify({action:'get',provider:p})});}
   async setKey(p:Provider,key:string){await run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(this.workers,'credentials.ps1')],{input:JSON.stringify({action:'set',provider:p,key})});}
   async readiness(){const required=['ffmpeg.exe','ffprobe.exe','yt-dlp.exe','python/python.exe','models/whisper-small/model.bin','models/whisper-small/config.json','models/whisper-small/vocabulary.txt','models/whisper-small/tokenizer.json','models/face.onnx','models/speaker.onnx','fonts/NotoSans-Bold.ttf','fonts/NotoSansDevanagari-Bold.ttf','fonts/NotoSansCJKjp-Bold.otf'];const missing=[];for(const f of required)if(!await exists(path.join(this.runtime,f)))missing.push(f);return {ready:!missing.length,missing};}
-  async init(){await fs.mkdir(path.join(this.root,'work'),{recursive:true});await fs.mkdir(path.join(this.root,'outputs'),{recursive:true});for(const j of this.store.jobs()){if(['importing','transcribing','analyzing','framing','rendering'].includes(j.stage)){this.update(j,{stage:'paused',message:'Processing was interrupted. Resume within 24 hours.',cleanupAt:j.updatedAt+DAY});}}await this.cleanup();this.pump();}
+  async init(){await fs.mkdir(path.join(this.root,'work'),{recursive:true});await fs.mkdir(path.join(this.root,'outputs'),{recursive:true});const now=this.store.now();for(const j of this.store.jobs()){if(['importing','transcribing','analyzing','framing','rendering'].includes(j.stage)){this.update(j,{stage:'paused',message:'Processing was interrupted. Resume within 24 hours.',cleanupAt:Math.max(j.updatedAt,now)+DAY});}}await this.cleanup();this.pump();}
   async create(input:Job['input']){
     if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
     if(input.kind==='url')input.value=validateUrl(input.value);
     else if(!this.allowedInputs.has(input.value))throw new Error('Choose your local video with the file picker.');
-    const now=Date.now();const job:Job={id:randomUUID(),title:input.kind==='local'?path.basename(input.value):'Linked video',input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local'};
+    const now=this.store.now();const job:Job={id:randomUUID(),title:input.kind==='local'?path.basename(input.value):'Linked video',input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local'};
     this.store.put(job);this.changed();this.pump();return job.id;
   }
   pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}
   async action(id:string,action:'pause'|'resume'|'delete'){
     const job=this.store.get(id);if(!job)throw new Error('Project not found.');
     if(this.saving.has(id))throw new Error('Wait for the save to finish.');
-    if(action==='pause'){if(this.active.has(id))this.active.get(id)!.abort();else if(job.stage==='queued')this.update(job,{stage:'paused',cleanupAt:Date.now()+DAY,message:'Paused · recover within 24 hours'});return;}
+    if(action==='pause'){if(this.active.has(id))this.active.get(id)!.abort();else if(job.stage==='queued')this.update(job,{stage:'paused',cleanupAt:this.store.now()+DAY,message:'Paused · recover within 24 hours'});return;}
     if(this.active.has(id))throw new Error('Wait for processing to stop.');
     if(action==='delete'){await removeWorkspace(path.join(this.root,'work'),this.work(id));await removeWorkspace(path.join(this.root,'outputs'),this.out(id));this.store.remove(id);this.changed();return;}
     if(job.workingDeleted||job.stage==='expired')throw new Error('Recovery expired. Import your video again.');
     if(!['paused','failed'].includes(job.stage))throw new Error('This project cannot be resumed.');
-    if(job.cleanupAt&&job.cleanupAt<=Date.now()){await this.cleanup();throw new Error('Recovery expired. Import your video again.');}
+    if(job.cleanupAt&&job.cleanupAt<=this.store.now()){await this.cleanup();throw new Error('Recovery expired. Import your video again.');}
     this.update(job,{stage:'queued',cleanupAt:undefined,error:undefined,message:'Resuming from saved progress'});this.pump();
   }
-  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>):Promise<T>{try{const value=JSON.parse(await fs.readFile(file,'utf8'));if(validate(value))return value;}catch{}const value=await generate();await atomicJSON(file,value);return value;}
+  async seal(file:string){await fs.writeFile(file+'.sha256',await hash(file),'utf8');}
+  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>):Promise<T>{try{const value=JSON.parse(await fs.readFile(file,'utf8'));const expected=(await fs.readFile(file+'.sha256','utf8')).trim();if(validate(value)&&expected===await hash(file))return value;}catch{}const value=await generate();await atomicJSON(file,value);await this.seal(file);return value;}
   async process(job:Job){
     const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
     const phase=(stage:Stage,progress:number,message:string)=>this.update(job,{stage,checkpoint:stage,progress,message,cleanupAt:undefined});
@@ -72,22 +76,23 @@ export class Service {
       const frames=await this.checkpoint<Frame[]>(path.join(work,'frames.json'),d=>Array.isArray(d),async()=>{
         await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'frame','--input',source,'--audio',audio,'--transcript',transcriptFile,'--output',path.join(work,'frames.json'),'--models',path.join(this.runtime,'models')],{signal,progress:line=>{try{const p=JSON.parse(line);this.update(job,{progress:43+p.progress*10,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(path.join(work,'frames.json'),'utf8'));
       });
+      await this.seal(transcriptFile);
       transcript=JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       phase('analyzing',54,'Finding moments across the entire video');
       const candidates=await this.checkpoint<Candidate[]>(path.join(work,'candidates.json'),d=>Array.isArray(d)&&d.every(c=>c.end-c.start>=30&&c.end-c.start<=60),()=>analyze(transcript,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':message.startsWith('OpenRouter')?'OpenRouter':message.startsWith('Local')?'Local':job.provider})));
-      if(!candidates.length){this.update(job,{stage:'completed',progress:100,message:'No strong 30–60 second moments found. Try a different video.',cleanupAt:Date.now()+DAY});this.notify(job);return;}
+      if(!candidates.length){this.update(job,{stage:'completed',progress:100,message:'No strong 30–60 second moments found. Try a different video.',cleanupAt:this.store.now()+DAY});this.notify(job);return;}
       phase('rendering',62,`Creating ${candidates.length} Reels`);
       // Batches contain three clips; render one at a time to bound filter memory.
       for(let batch=0;batch<candidates.length;batch+=3){for(let i=batch;i<Math.min(batch+3,candidates.length);i++){
         signal.throwIfAborted();const id=String(i+1).padStart(2,'0');const file=path.join(output,`reelmind_${id}.mp4`);
         const previous=job.outputs.find(r=>r.id===id);if(previous&&await exists(file)){try{await probe(this.runtime,file,signal);continue;}catch{}}
-        const plan=planEdit(candidates[i],transcript,frames);const clipWork=path.join(work,'clip_'+id);await fs.mkdir(clipWork,{recursive:true});await atomicJSON(path.join(clipWork,'plan.json'),plan);
+        const plan=planEdit(candidates[i],transcript,frames,media.fps);const clipWork=path.join(work,'clip_'+id);await fs.mkdir(clipWork,{recursive:true});await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
         this.update(job,{message:`Batch ${Math.floor(batch/3)+1} · rendering Reel ${i+1} of ${candidates.length}`});
-        const partial=file+'.partial.mp4';await render(this.runtime,source,plan,partial,clipWork,this.store.settings().quality,signal,n=>this.update(job,{progress:62+(i+n)/candidates.length*37}));await fs.rename(partial,file);
+        const partial=file+'.partial.mp4';await render(this.runtime,source,plan,partial,clipWork,this.store.settings().quality,this.renderHardware,signal,n=>this.update(job,{progress:62+(i+n)/candidates.length*37}));await fs.rename(partial,file);
         job.outputs=job.outputs.filter(r=>r.id!==id);job.outputs.push({id,title:candidates[i].hook.slice(0,100),duration:plan.duration,file,reason:candidates[i].reason});this.update(job,{outputs:job.outputs});
       }}
-      this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:Date.now()+DAY});this.notify(job);
-    }catch(error){this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:Date.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});}
+      this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:this.store.now()+DAY});this.notify(job);
+    }catch(error){this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});}
     finally{this.active.delete(job.id);this.pump();}
   }
   async save(id:string,dir:string,blocked:string[]){
@@ -106,11 +111,11 @@ export class Service {
     }finally{this.saving.delete(id);}
   }
   async cleanup(){for(const job of this.store.jobs()){
-    if(this.active.has(job.id)||this.saving.has(job.id)||job.workingDeleted||!job.cleanupAt||job.cleanupAt>Date.now())continue;
+    if(this.active.has(job.id)||this.saving.has(job.id)||job.workingDeleted||!job.cleanupAt||job.cleanupAt>this.store.now())continue;
     await removeWorkspace(path.join(this.root,'work'),this.work(job.id));
     // Incomplete renders are temporary; completed outputs survive expiry.
     if(await exists(this.out(job.id)))for(const name of await fs.readdir(this.out(job.id))){if(name.endsWith('.partial.mp4'))await fs.unlink(path.join(this.out(job.id),name));}
     job.input.value='';this.update(job,{workingDeleted:true,stage:job.stage==='completed'?'completed':'expired',message:job.stage==='completed'?'Working files cleaned up · finished Reels remain':'Recovery expired · import the source again',error:undefined});
   }}
-  async shutdown(){this.stopping=true;for(const [id,controller] of this.active){const job=this.store.get(id);if(job)this.update(job,{stage:'paused',cleanupAt:Date.now()+DAY,message:'Paused when the app closed'});controller.abort();}while(this.active.size)await new Promise(r=>setTimeout(r,50));}
+  async shutdown(){this.stopping=true;for(const [id,controller] of this.active){const job=this.store.get(id);if(job)this.update(job,{stage:'paused',cleanupAt:this.store.now()+DAY,message:'Paused when the app closed'});controller.abort();}while(this.active.size)await new Promise(r=>setTimeout(r,50));}
 }

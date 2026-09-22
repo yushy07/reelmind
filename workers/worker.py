@@ -24,15 +24,23 @@ def transcribe(args):
     for start in range(0, len(audio), 30 * 16000):
         offset = start / 16000
         chunk = audio[start:start + 30 * 16000]
-        segments, info = model.transcribe(chunk, beam_size=5, word_timestamps=True, vad_filter=True, condition_on_previous_text=False)
-        if info.language_probability < .45:
-            segments, info = model.transcribe(chunk, beam_size=5, word_timestamps=True, vad_filter=True, language='en', condition_on_previous_text=False)
-        for s in segments:
+        provisional, _ = model.transcribe(chunk, beam_size=5, word_timestamps=True, vad_filter=True, condition_on_previous_text=False)
+        provisional = list(provisional)
+        for s in provisional:
             if s.no_speech_prob > .75 or not s.words:
                 continue
-            words = [{'start': w.start + offset, 'end': w.end + offset, 'text': w.word, 'probability': w.probability} for w in s.words if w.end > w.start]
-            sample = chunk[int(s.start*16000):int(s.end*16000)]
-            result.append({'start': s.start+offset, 'end': s.end+offset, 'text': s.text.strip(), 'language': info.language, 'energy': float(np.sqrt(np.mean(sample**2))) if len(sample) else 0, 'words': words})
+            sample_start=max(0, int((s.start-.2)*16000));sample_end=min(len(chunk),int((s.end+.2)*16000));sample=chunk[sample_start:sample_end]
+            language, probability, _ = model.detect_language(audio=sample, vad_filter=False)
+            if probability < .45:
+                language='en'
+            refined, _ = model.transcribe(sample, beam_size=5, word_timestamps=True, vad_filter=False, language=language, condition_on_previous_text=False)
+            base=offset+sample_start/16000
+            for part in refined:
+                if part.no_speech_prob > .75 or not part.words:
+                    continue
+                words = [{'start': w.start + base, 'end': w.end + base, 'text': w.word, 'probability': w.probability} for w in part.words if w.end > w.start]
+                if words:
+                    result.append({'start': words[0]['start'], 'end': words[-1]['end'], 'text': part.text.strip(), 'language': language, 'language_probability': probability, 'energy': float(np.sqrt(np.mean(sample**2))) if len(sample) else 0, 'words': words})
         emit(progress=min(.99, (start + len(chunk))/len(audio)), message='Transcribing speech locally')
     if not result:
         raise ValueError('No clear speech found in this video.')

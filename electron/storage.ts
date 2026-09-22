@@ -14,6 +14,12 @@ export class Store {
   remove(id:string){this.db.prepare('DELETE FROM jobs WHERE id=?').run(id);}
   settings():Settings{const row=this.db.prepare("SELECT data FROM preferences WHERE id='settings'").get() as {data:string}|undefined;return row?{...defaults,...JSON.parse(row.data)}:defaults;}
   setSettings(s:Settings){this.db.prepare("INSERT OR REPLACE INTO preferences VALUES ('settings',?)").run(JSON.stringify(s));}
+  now(wall=Date.now()){
+    const row=this.db.prepare("SELECT data FROM preferences WHERE id='clockHighWater'").get() as {data:string}|undefined;
+    const previous=Number(row?.data||0);const effective=Math.max(wall,previous);
+    if(wall>previous)this.db.prepare("INSERT OR REPLACE INTO preferences VALUES ('clockHighWater',?)").run(String(wall));
+    return effective;
+  }
 }
 export function within(root:string,target:string){const rel=path.relative(path.resolve(root),path.resolve(target));return rel===''||(!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel));}
 export async function removeWorkspace(root:string,target:string){

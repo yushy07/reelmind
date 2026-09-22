@@ -19,3 +19,11 @@ test('interrupted job resumes only within its recovery window',async()=>{
  try{await service.init();const id=randomUUID();const job:Job={id,title:'Interrupted',input:{kind:'local',value:'source'},stage:'paused',checkpoint:'transcribing',progress:20,message:'Paused',createdAt:Date.now(),updatedAt:Date.now(),cleanupAt:Date.now()+DAY,outputs:[],provider:'Local'};store.put(job);await service.action(id,'resume');assert.equal(store.get(id)?.stage,'queued');assert.equal(store.get(id)?.checkpoint,'transcribing');assert.equal(store.get(id)?.cleanupAt,undefined);store.put({...job,stage:'paused',cleanupAt:Date.now()-1});await assert.rejects(()=>service.action(id,'resume'),/Recovery expired/);assert.equal(store.get(id)?.stage,'expired');
  }finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
 });
+test('clock rollback cannot extend cleanup deadlines',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-clock-'));const store=new Store(path.join(root,'db.sqlite'));
+ try{assert.equal(store.now(10_000),10_000);assert.equal(store.now(1_000),10_000);assert.equal(store.now(20_000),20_000);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});
+test('corrupt checkpoint is regenerated while a valid checkpoint is reused',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-checkpoint-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});const file=path.join(root,'stage.json');let generated=0;
+ try{const make=async()=>({ok:true,value:++generated});assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,1);assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,1);await fs.writeFile(file,'{"ok":true,"value":999}');assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,2);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});

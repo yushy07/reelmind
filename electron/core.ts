@@ -38,14 +38,18 @@ export function localCandidates(t:Transcript):Candidate[] {
     const last=group.at(-1)!;if(last.end-first.start<30)continue;
     const text=group.map(s=>s.text).join(' '),length=group.reduce((n,s)=>n+s.words.length,0);
     if(length<35)continue;
-    const hook=/\?|why|how|never|secret|mistake|lost|imagine|actually|लेकिन|क्यों|गलती|नहीं|実は|なぜ|でも|失敗/i.test(first.text);
+    const hook=/\?|why|how|never|secret|mistake|lost|imagine|actually|what if|लेकिन|क्यों|गलती|नहीं|実は|なぜ|でも|失敗/i.test(first.text);
     const payoff=/[.!?。！？]$/.test(last.text.trim());
-    const keywords=(text.match(/because|learn|realiz|surpris|remember|laugh|changed|लेकिन|क्योंकि|समझ|सीखा|本当|理由|だから|気づ/gi)||[]).length;
+    const keywords=(text.match(/because|learn|realiz|surpris|remember|laugh|changed|truth|turns out|लेकिन|क्योंकि|समझ|सीखा|सच|本当|理由|だから|気づ|まさか/gi)||[]).length;
     const turns=new Set(group.map(s=>s.speaker).filter(Boolean)).size;
     const energy=group.reduce((n,s)=>n+(s.energy||0),0)/group.length;
+    const energyShift=Math.max(...group.map(s=>s.energy||0))-Math.min(...group.map(s=>s.energy||0));
+    const questions=group.filter(s=>/[?？]$/.test(s.text.trim())).length;
+    const reactions=(text.match(/\b(?:wow|wait|really|exactly|yes|no way|amazing)\b|वाह|सच में|えっ|すごい|本当に/gi)||[]).length;
+    const startsClean=!/^(?:and|but|so|because|he|she|they|it|और|लेकिन|तो|そして|でも)\b/i.test(first.text.trim());
     const variety=terms(text).size/Math.max(1,length);
-    const score=Math.min(88,35+(hook?15:0)+(payoff?9:0)+Math.min(12,keywords*3)+Math.min(5,turns*2)+Math.min(5,energy*100)+Math.min(7,variety*8));
-    candidates.push({start:first.start,end:last.end,hook:first.text,context:group.slice(1,-1).map(s=>s.text).join(' ').slice(0,950),payoff:last.text,category:'conversation',reason:'Local estimate: opening strength, complete sentence, speaker turns, emphasis and topic variety.',score});
+    const score=Math.min(92,30+(hook?15:0)+(payoff?9:0)+(startsClean?5:0)+Math.min(12,keywords*3)+Math.min(6,turns*2)+Math.min(6,energy*90)+Math.min(5,energyShift*120)+Math.min(5,questions*2)+Math.min(5,reactions*2)+Math.min(7,variety*8));
+    candidates.push({start:first.start,end:last.end,hook:first.text,context:group.slice(1,-1).map(s=>s.text).join(' ').slice(0,950),payoff:last.text,category:questions?'question-answer':reactions?'reaction':'conversation',reason:'Local ranking: clean opening, hook/payoff, question-answer flow, speaker turns, vocal energy, reactions and topic variety.',score});
   }
   return selectCandidates(candidates,t);
 }
@@ -64,11 +68,12 @@ export function makeCaptions(words:Word[]):string {
   return header+groups.flatMap(g=>g.map((active,i)=>{
     const end=i+1<g.length?Math.min(g[i+1].start,active.end+.15):active.end+.06;
     const font=/[\u0900-\u097f]/.test(g.map(w=>w.text).join(''))?'Noto Sans Devanagari':/[\u3040-\u30ff\u3400-\u9fff]/.test(g.map(w=>w.text).join(''))?'Noto Sans JP':'Noto Sans';
-    const text=g.map((w,j)=>`{\\c${j===i?'&H0061E9D1&':'&H00FFFFFF&'}}${escapeAss(w.text.trim())}`).join(font==='Noto Sans JP'?'':' ');
-    return `Dialogue: 0,${assTime(active.start)},${assTime(Math.max(active.start+.03,end))},Default,,0,0,0,,{\\fn${font}\\fad(35,35)\\fscx96\\fscy96\\t(0,90,\\fscx100\\fscy100)}${text}\n`;
+    const emphasis=/\b(?:never|always|secret|mistake|truth|changed|best|worst|first|last)\b|कभी|हमेशा|गलती|सच|सबसे|絶対|秘密|本当|一番|\d+/iu.test(active.text);
+    const text=g.map((w,j)=>`{\\c${j===i?'&H0061E9D1&':'&H00FFFFFF&'}${j===i&&emphasis?'\\fscx112\\fscy112':''}}${escapeAss(w.text.trim())}`).join(font==='Noto Sans JP'?'':' ');
+    return `Dialogue: 0,${assTime(active.start)},${assTime(Math.max(active.start+.03,end))},Default,,0,0,0,,{\\fn${font}\\fad(45,55)\\fscx94\\fscy94\\t(0,110,\\fscx100\\fscy100)}${text}\n`;
   })).join('');
 }
-export function planEdit(c:Candidate,t:Transcript,frames:Frame[]):EditPlan {
+export function planEdit(c:Candidate,t:Transcript,frames:Frame[],sourceFps=30):EditPlan {
   const words=t.segments.flatMap(s=>s.words).filter(w=>w.start>=c.start&&w.end<=c.end);
   const cuts:{start:number;end:number}[]=[];
   let start=c.start;
@@ -79,9 +84,17 @@ export function planEdit(c:Candidate,t:Transcript,frames:Frame[]):EditPlan {
   const remap=(n:number)=>{let offset=0;for(const cut of cuts){if(n<=cut.end)return offset+Math.max(0,n-cut.start);offset+=cut.end-cut.start;}return offset;};
   const outputWords=words.map(w=>({...w,start:remap(w.start),end:remap(w.end)}));
   const shots:EditPlan['shots']=[];let offset=0;
-  for(const cut of cuts){for(let a=cut.start;a<cut.end;a+=4){const end=Math.min(a+4,cut.end);const frame=frames.reduce<Frame|undefined>((best,f)=>!best||Math.abs(f.time-a)<Math.abs(best.time-a)?f:best,undefined);const face=frame?.faces.find(f=>f.track===frame.activeTrack)||frame?.faces[0];const confident=frame&&frame.confidence>.65;
-      shots.push({start:offset+a-cut.start,end:offset+end-cut.start,center:confident&&face?Math.min(.85,Math.max(.15,face.x+face.w/2)):.5,layout:confident&&face?'portrait':frame&&frame.faces.length===2?'split':'fit',centers:frame?.faces.slice(0,2).map(f=>f.x+f.w/2),zoom:shots.length%2===0?1.08:1});}
+  const nearest=(time:number)=>frames.reduce<Frame|undefined>((best,f)=>!best||Math.abs(f.time-time)<Math.abs(best.time-time)?f:best,undefined);
+  for(const cut of cuts){let a=cut.start;while(a<cut.end-.02){
+      const min=a+2.7,max=Math.min(a+5.2,cut.end);const boundary=words.filter(w=>w.end>=min&&w.end<=max&&/[.!?।。！？,:;]$/.test(w.text.trim())).at(-1)?.end;
+      const currentSpeaker=t.segments.find(x=>x.start<=a&&x.end>=a)?.speaker;const speakerBoundary=t.segments.find(s=>s.start>=min&&s.start<=max&&s.speaker!==currentSpeaker)?.start;
+      const end=Math.min(cut.end,speakerBoundary||boundary||max);const frame=nearest(a),endFrame=nearest(Math.max(a,end-.2));const face=frame?.faces.find(f=>f.track===frame.activeTrack)||frame?.faces[0];const endFace=endFrame?.faces.find(f=>f.track===(face?.track??endFrame.activeTrack))||endFrame?.faces[0];const confident=!!frame&&frame.confidence>.65;
+      const layout=confident&&face?'portrait':frame?.faces.length===2?'split':'fit';const center=confident&&face?Math.min(.85,Math.max(.15,face.x+face.w/2)):.5;const endCenter=confident&&endFace?Math.min(.85,Math.max(.15,endFace.x+endFace.w/2)):center;
+      const transition:EditPlan['shots'][number]['transition']=speakerBoundary?'cut':shots.length%3===0?'punch':'reframe';
+      shots.push({start:offset+a-cut.start,end:offset+end-cut.start,center,endCenter,layout,centers:frame?.faces.slice(0,2).map(f=>f.x+f.w/2),zoom:transition==='punch'?1.1:1.03,transition});a=end;
+    }
     offset+=cut.end-cut.start;
   }
-  return {version:1,candidate:c,words:outputWords,shots,cuts,duration:offset,captions:makeCaptions(outputWords),fps:30,audio:{sourceOnly:true,lufs:-16}};
+  const motion=frames.length<2?0:frames.slice(1).reduce((n,f,i)=>n+Math.abs((f.faces[0]?.x||.5)-(frames[i].faces[0]?.x||.5)),0)/(frames.length-1);
+  return {version:2,candidate:c,words:outputWords,shots,cuts,duration:offset,captions:makeCaptions(outputWords),fps:sourceFps>=50&&motion>.008?60:30,audio:{sourceOnly:true,lufs:-16}};
 }
