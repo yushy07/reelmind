@@ -32,7 +32,7 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
   const base=['-hide_banner','-y','-filter_complex_threads','2','-ss',String(origin),'-t',String(plan.candidate.end-origin),'-i',source,'-filter_complex',graph,'-map','[out]','-map','[aout]','-c:a','aac','-b:a','192k','-ar','48000','-movflags','+faststart','-progress','pipe:1','-nostats'];
   const encode=async(args:string[])=>run(path.join(runtime,'ffmpeg.exe'),[...base,...args,output],{cwd:work,signal,progress:line=>{if(line.startsWith('out_time_us='))report(Math.min(.99,Number(line.slice(12))/1e6/plan.duration));}});
   try{if(!hardware.nvenc)throw new Error('NVENC not selected');await encode(['-c:v','h264_nvenc','-preset','p4','-cq',quality==='high'?'19':'23']);}
-  catch{signal.throwIfAborted();await encode(['-c:v','libx264','-preset','fast','-crf',quality==='high'?'19':'23','-threads',String(hardware.cpuThreads)]);}
+  catch{signal.throwIfAborted();try{await encode(['-c:v','libopenh264','-b:v',quality==='high'?'10M':'7M','-maxrate',quality==='high'?'14M':'10M','-bufsize','20M','-threads',String(hardware.cpuThreads)]);}catch{signal.throwIfAborted();await encode(['-c:v','h264_mf','-b:v',quality==='high'?'10M':'7M']);}}
   const metadata=await probe(runtime,output,signal);
   if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<29.9||metadata.duration>60.2)throw new Error('Rendered Reel failed export validation.');
 }

@@ -6,7 +6,7 @@ import {planEdit} from '../electron/core';
 import type {Transcript,Candidate} from '../shared/types';
 async function main(){
  const root=path.resolve('.test-data/render');await fs.mkdir(root,{recursive:true});const runtime=path.resolve('runtime');const source=path.join(root,'test-source.mp4');
- await run(path.join(runtime,'ffmpeg.exe'),['-y','-f','lavfi','-i','testsrc2=size=640x360:rate=30','-f','lavfi','-i','sine=frequency=220:sample_rate=48000','-t','34','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac',source]);
+ await run(path.join(runtime,'ffmpeg.exe'),['-y','-f','lavfi','-i','testsrc2=size=640x360:rate=30','-f','lavfi','-i','sine=frequency=220:sample_rate=48000','-t','34','-c:v','libopenh264','-b:v','3M','-pix_fmt','yuv420p','-c:a','aac',source]);
  const texts=['One idea changes everything.','एक छोटी सी सीख सब बदल सकती है।','一つの考えがすべてを変える。'];
  const transcript:Transcript={version:1,duration:34,language:'en',segments:Array.from({length:8},(_,i)=>({start:i*4,end:i*4+3.7,text:texts[i%3],language:['en','hi','ja'][i%3],words:texts[i%3].split(' ').map((text,j,all)=>({start:i*4+j*3.7/all.length,end:i*4+(j+1)*3.7/all.length,text}))}))};
  const candidate:Candidate={start:1,end:33,hook:'Test caption',context:'Multilingual render test',payoff:'Complete.',reason:'test',category:'test',score:90};

@@ -22,7 +22,7 @@ $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 if (-not (Test-Path (Join-Path $runtimeRoot 'ffmpeg.exe'))) {
  if ($ffmpeg) { Copy-Item -LiteralPath $ffmpeg.Source -Destination (Join-Path $runtimeRoot 'ffmpeg.exe'); Copy-Item -LiteralPath (Join-Path (Split-Path $ffmpeg.Source) 'ffprobe.exe') -Destination (Join-Path $runtimeRoot 'ffprobe.exe') }
  else {
-  Download-Asset 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' (Join-Path $runtimeRoot 'ffmpeg.zip')
+  Download-Asset 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-9.0.zip' (Join-Path $runtimeRoot 'ffmpeg.zip')
   Expand-Archive -LiteralPath (Join-Path $runtimeRoot 'ffmpeg.zip') -DestinationPath (Join-Path $runtimeRoot 'ffmpeg-dist') -Force
   Get-ChildItem -LiteralPath (Join-Path $runtimeRoot 'ffmpeg-dist') -Recurse -Filter '*.exe' | Where-Object Name -In @('ffmpeg.exe','ffprobe.exe') | Copy-Item -Destination $runtimeRoot
  }
