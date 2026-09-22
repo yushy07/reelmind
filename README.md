@@ -4,9 +4,9 @@
 
 **A personal, Windows-only studio for turning long videos into Instagram-ready Reels.** Import a local video or public link, let the app find strong moments, and save the finished vertical clips wherever you want. No timeline editor, subscription, added music, or developer tools are needed for the installed app.
 
-[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.1.0) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
+[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.1.1) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
 
-> **Current release:** v0.1.0 is an early personal-use prerelease. The installer is unsigned. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
+> **Current release:** v0.1.1 is an early personal-use prerelease. The installer is unsigned. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
 
 **Moving to another Windows PC?** Download the **Setup EXE under Releases**, run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
 
@@ -30,7 +30,7 @@ Screenshots are from the desktop app. The Settings image contains no API keys.
 
 ## Install and use
 
-1. Download and run **`REELMIND Setup 0.1.0.exe`** from the [v0.1.0 release](https://github.com/yushy07/reelmind/releases/tag/v0.1.0).
+1. Download and run **`REELMIND Setup 0.1.1.exe`** from the [v0.1.1 release](https://github.com/yushy07/reelmind/releases/tag/v0.1.1).
 2. Open **REELMIND** from the desktop shortcut or Windows Start menu.
 3. Choose **New project**, then a local MP4, MOV, MKV, AVI, or WebM file, or a public YouTube/direct-video HTTPS link. Select **Generate Reels**.
 4. When processing finishes, open **Your Reels** and choose **Save Reels**. Select a folder outside the app's installation and data folders. REELMIND verifies each saved file before removing its internal copy.
