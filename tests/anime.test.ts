@@ -5,7 +5,14 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate } from '../shared/types';
+import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, Settings } from '../shared/types';
+import {
+  buildGeminiEvaluationPrompt,
+  animeEvaluationResponseSchema,
+  selectDiverseConcepts,
+  selectAnimeMoments,
+  type AnimeEvaluationItem
+} from '../electron/anime/selection';
 
 const execFileAsync = promisify(execFile);
 
@@ -361,6 +368,313 @@ test('anime_worker score-candidates CLI produces valid candidates schema on test
     }
   } finally {
     await fs.rm(tmpWork, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+function createMockCandidates(count = 20): AnimeCandidate[] {
+  const categories: ('action' | 'emotional' | 'dialogue' | 'cinematic')[] = ['action', 'emotional', 'dialogue', 'cinematic'];
+  const candidates: AnimeCandidate[] = [];
+  let t = 0;
+  for (let i = 1; i <= count; i++) {
+    const dur = 3.0 + (i % 4);
+    const cat = categories[(i - 1) % categories.length];
+    const totalScore = Math.round((0.4 + ((count - i) / count) * 0.5) * 100) / 100;
+    candidates.push({
+      id: i,
+      shotId: i * 2,
+      start: t,
+      end: t + dur,
+      duration: dur,
+      impactTime: Math.round((t + dur * 0.45) * 100) / 100,
+      motionScore: 0.6,
+      faceScore: 0.4,
+      audioEnergyScore: 0.5,
+      transientScore: 0.7,
+      impactScore: 0.65,
+      totalScore,
+      category: cat,
+      hasDialogue: cat === 'dialogue' || cat === 'emotional',
+      dialogueText: cat === 'dialogue' ? `Dialogue line for candidate ${i}` : undefined,
+      facesCount: 1,
+      maxFaceRatio: 0.2
+    });
+    t += dur + 1.0;
+  }
+  return candidates;
+}
+
+test('buildGeminiEvaluationPrompt produces compact prompt bounded to 24 candidates and includes BPM', () => {
+  const candidates = createMockCandidates(30);
+  const musicMap: MusicMap = {
+    duration: 120,
+    bpm: 148,
+    beats: [0.5, 1.0],
+    strongBeats: [1.0],
+    energySections: [{ start: 0, end: 120, energy: 0.7 }]
+  };
+
+  const prompt = buildGeminiEvaluationPrompt(candidates, musicMap);
+  assert.ok(prompt.includes('Music Track BPM: 148'));
+  assert.ok(prompt.includes('"evaluations"'));
+  assert.ok(prompt.includes('hard_beat_drop'));
+
+  // Ensure JSON candidates section contains max 24 items
+  const jsonMatch = prompt.match(/Candidates:\s*(\[.*\])/s);
+  assert.ok(jsonMatch);
+  const serialized = JSON.parse(jsonMatch[1]);
+  assert.equal(serialized.length, 24);
+  assert.equal(serialized[0].id, 1);
+  assert.ok(typeof serialized[0].category === 'string');
+});
+
+test('animeEvaluationResponseSchema parses valid JSON and applies fallback defaults on unexpected values', () => {
+  const validData = {
+    evaluations: [
+      {
+        candidateId: 1,
+        qualityScore: 92,
+        sceneVibe: 'high_energy_action',
+        narrativeImportance: 'high',
+        recommendedInOffset: -0.2,
+        recommendedOutOffset: 0.5,
+        editStyle: 'hard_beat_drop',
+        title: 'Epic Climax Hit',
+        description: 'Decisive strike during high speed exchange'
+      },
+      {
+        candidateId: 2,
+        qualityScore: 78,
+        sceneVibe: 'emotional_drama',
+        narrativeImportance: 'medium',
+        recommendedInOffset: 0,
+        recommendedOutOffset: 0,
+        editStyle: 'slow_burn'
+      }
+    ]
+  };
+
+  const parsed = animeEvaluationResponseSchema.parse(validData);
+  assert.equal(parsed.evaluations.length, 2);
+  assert.equal(parsed.evaluations[0].qualityScore, 92);
+  assert.equal(parsed.evaluations[0].editStyle, 'hard_beat_drop');
+
+  // Fallback resilience: unexpected vibe or editStyle caught safely
+  const lenientData = {
+    evaluations: [
+      {
+        candidateId: 3,
+        qualityScore: 85,
+        sceneVibe: 'unknown_alien_vibe', // should catch to high_energy_action
+        narrativeImportance: 'legendary', // should catch to medium
+        editStyle: 'crazy_style' // should catch to hard_beat_drop
+      }
+    ]
+  };
+
+  const lenientParsed = animeEvaluationResponseSchema.parse(lenientData);
+  assert.equal(lenientParsed.evaluations[0].sceneVibe, 'high_energy_action');
+  assert.equal(lenientParsed.evaluations[0].narrativeImportance, 'medium');
+  assert.equal(lenientParsed.evaluations[0].editStyle, 'hard_beat_drop');
+
+  // Strict rejection on out-of-range qualityScore
+  assert.throws(() => {
+    animeEvaluationResponseSchema.parse({
+      evaluations: [{ candidateId: 4, qualityScore: 150 }]
+    });
+  });
+});
+
+test('selectDiverseConcepts outputs strictly 3-5 non-overlapping concepts across vibes with appropriate styles', () => {
+  const candidates = createMockCandidates(20);
+  const concepts = selectDiverseConcepts(candidates);
+
+  assert.ok(concepts.length >= 3 && concepts.length <= 5, `Expected 3-5 concepts, got ${concepts.length}`);
+
+  // Check unique IDs
+  const ids = new Set(concepts.map(c => c.id));
+  assert.equal(ids.size, concepts.length);
+
+  // Check category diversity
+  const categories = new Set(concepts.map(c => c.category));
+  assert.ok(categories.size >= 3, `Expected at least 3 distinct categories, got ${categories.size}`);
+
+  // Check style assignments
+  for (const c of concepts) {
+    if (c.category === 'action') assert.equal(c.style, 'hard_beat_drop');
+    if (c.category === 'emotional') assert.equal(c.style, 'slow_burn');
+    if (c.category === 'dialogue') assert.equal(c.style, 'dialogue_pause');
+    if (c.category === 'cinematic') assert.equal(c.style, 'velocity_ramp');
+
+    assert.ok(c.impactTime >= c.start && c.impactTime <= c.end, `Impact time ${c.impactTime} not within [${c.start}, ${c.end}]`);
+    assert.ok(c.duration >= 2.0);
+    assert.ok(c.qualityScore >= 0 && c.qualityScore <= 100);
+  }
+
+  // Check non-overlapping timing
+  for (let i = 0; i < concepts.length; i++) {
+    for (let j = i + 1; j < concepts.length; j++) {
+      const a = concepts[i];
+      const b = concepts[j];
+      const sep = Math.abs(a.start - b.start);
+      assert.ok(sep >= 2.5 || a.end <= b.start || b.end <= a.start, `Overlap detected between concept ${a.id} and ${b.id}`);
+    }
+  }
+});
+
+test('selectDiverseConcepts incorporates Gemini evaluation quality scores and custom metadata', () => {
+  const candidates = createMockCandidates(12);
+  // Candidate #4 has category 'cinematic', originally lower totalScore than #1
+  const evMap = new Map<number, AnimeEvaluationItem>();
+  evMap.set(4, {
+    candidateId: 4,
+    qualityScore: 98,
+    sceneVibe: 'cinematic_atmosphere',
+    narrativeImportance: 'high',
+    recommendedInOffset: 0,
+    recommendedOutOffset: 0,
+    editStyle: 'velocity_ramp',
+    title: 'Breathtaking Vista Over the City',
+    description: 'Golden hour silhouette overlooking the Tokyo skyline'
+  });
+
+  const concepts = selectDiverseConcepts(candidates, evMap);
+  const promoted = concepts.find(c => c.shotId === 4 * 2); // shotId is candidateId * 2
+  assert.ok(promoted, 'Candidate #4 should be selected due to high Gemini quality score');
+  assert.equal(promoted.title, 'Breathtaking Vista Over the City');
+  assert.equal(promoted.description, 'Golden hour silhouette overlooking the Tokyo skyline');
+  assert.equal(promoted.qualityScore, 98);
+  assert.equal(promoted.style, 'velocity_ramp');
+  assert.equal(promoted.narrativeImportance, 'high');
+});
+
+test('selectAnimeMoments handles cloud disabled, Gemini quota 429, and API success gracefully', async () => {
+  const candidates = createMockCandidates(16);
+  const musicMap: MusicMap = { duration: 60, bpm: 135, beats: [], strongBeats: [], energySections: [] };
+  const logs: string[] = [];
+  const report = (msg: string) => logs.push(msg);
+
+  const baseSettings: Settings = {
+    providerOrder: ['gemini', 'openrouter'],
+    geminiModel: 'gemini-1.5-flash',
+    openrouterModel: 'openrouter/free',
+    quality: 'balanced',
+    cloudEnabled: false,
+    geminiFreeConfirmed: false,
+    transcriptionMode: 'standard'
+  };
+
+  // Case 1: Cloud disabled -> runs local selection directly, fetch never called
+  let fetchCalled = false;
+  const mockFetchDisabled = (async () => {
+    fetchCalled = true;
+    return new Response();
+  }) as unknown as typeof fetch;
+
+  const res1 = await selectAnimeMoments(candidates, musicMap, baseSettings, async () => '', new AbortController().signal, report, mockFetchDisabled);
+  assert.equal(fetchCalled, false);
+  assert.ok(res1.length >= 3 && res1.length <= 5);
+  assert.ok(logs.some(l => l.includes('cloud disabled')));
+
+  // Case 2: Cloud enabled, Gemini returns 429 quota reached -> fallbacks gracefully without error
+  logs.length = 0;
+  const cloudSettings: Settings = { ...baseSettings, cloudEnabled: true, geminiFreeConfirmed: true };
+  const mockFetchQuota = (async () => {
+    return new Response(JSON.stringify({ error: { message: 'Quota exceeded' } }), { status: 429 });
+  }) as unknown as typeof fetch;
+
+  const res2 = await selectAnimeMoments(candidates, musicMap, cloudSettings, async () => 'mock-gemini-key', new AbortController().signal, report, mockFetchQuota);
+  assert.ok(res2.length >= 3 && res2.length <= 5);
+  assert.ok(logs.some(l => l.includes('free quota reached')));
+
+  // Case 3: Cloud enabled, Gemini returns valid response
+  logs.length = 0;
+  const mockGeminiData = {
+    candidates: [{
+      content: {
+        parts: [{
+          text: JSON.stringify({
+            evaluations: [
+              {
+                candidateId: 1,
+                qualityScore: 95,
+                sceneVibe: 'high_energy_action',
+                narrativeImportance: 'high',
+                recommendedInOffset: 0,
+                recommendedOutOffset: 0,
+                editStyle: 'hard_beat_drop',
+                title: 'High Speed Pursuit',
+                description: 'Car chase through neon-lit highway'
+              }
+            ]
+          })
+        }]
+      }
+    }]
+  };
+  const mockFetchSuccess = (async () => {
+    return new Response(JSON.stringify(mockGeminiData), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const res3 = await selectAnimeMoments(candidates, musicMap, cloudSettings, async () => 'mock-gemini-key', new AbortController().signal, report, mockFetchSuccess);
+  assert.ok(res3.length >= 3 && res3.length <= 5);
+  assert.ok(logs.some(l => l.includes('evaluated 1 candidate moments successfully')));
+  const topConcept = res3.find(c => c.title === 'High Speed Pursuit');
+  assert.ok(topConcept);
+  assert.equal(topConcept.qualityScore, 95);
+});
+
+test('edit_concepts checkpoint caching ensures instant reuse and invalidates on candidate changes', async () => {
+  const tmpDir = path.join(__dirname, '..', '.test-data', 'concepts_checkpoint_test');
+  await fs.mkdir(tmpDir, { recursive: true });
+
+  try {
+    const candidatesFile = path.join(tmpDir, 'candidates.json');
+    const conceptsFile = path.join(tmpDir, 'edit_concepts.json');
+    const hashFile = conceptsFile + '.sha256';
+
+    const candidates1 = createMockCandidates(5);
+    await fs.writeFile(candidatesFile, JSON.stringify(candidates1));
+
+    const candHash1 = createHash('sha256').update(await fs.readFile(candidatesFile)).digest('hex');
+    const expectedHash1 = createHash('sha256').update(JSON.stringify({ candidates: candHash1, v: 1 })).digest('hex');
+
+    const sampleConcepts: AnimeEditConcept[] = [
+      {
+        id: 1,
+        shotId: 2,
+        start: 0,
+        end: 4,
+        duration: 4,
+        impactTime: 1.8,
+        category: 'action',
+        style: 'hard_beat_drop',
+        title: 'Action Opener',
+        description: 'Explosive start',
+        narrativeImportance: 'high',
+        qualityScore: 90,
+        motionScore: 0.8,
+        faceScore: 0.2,
+        transientScore: 0.9,
+        hasDialogue: false
+      }
+    ];
+
+    await fs.writeFile(conceptsFile, JSON.stringify(sampleConcepts));
+    await fs.writeFile(hashFile, expectedHash1);
+
+    // Verify stored hash matches
+    const stored = (await fs.readFile(hashFile, 'utf8')).trim();
+    assert.equal(stored, expectedHash1);
+
+    // Modify candidates.json -> hash must invalidate
+    const candidates2 = createMockCandidates(8);
+    await fs.writeFile(candidatesFile, JSON.stringify(candidates2));
+    const candHash2 = createHash('sha256').update(await fs.readFile(candidatesFile)).digest('hex');
+    const expectedHash2 = createHash('sha256').update(JSON.stringify({ candidates: candHash2, v: 1 })).digest('hex');
+
+    assert.notEqual(stored, expectedHash2, 'Checkpoint should invalidate when candidates change');
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 });
 

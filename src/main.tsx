@@ -103,11 +103,28 @@ function Project({job,busy,onAction,onSave,back}:{job:Job;busy:boolean;onAction:
     {isAnime&&done&&job.animeAnalysis&&<div className="anime-analysis-card">
       <div className="analysis-header"><Sparkles size={24}/><div><h3>Anime Intelligence & Candidates Ready</h3><p>Local intelligence complete: Motion analyzed, audio dynamics mapped, impact spikes calculated, and candidate moments ranked.</p></div></div>
       <div className="analysis-stats">
-        <div className="stat-box"><strong>{job.animeAnalysis.shotCount}</strong><small>Shots Indexed</small></div>
+        <div className="stat-box"><strong>{job.animeAnalysis.conceptsCount||job.animeAnalysis.concepts?.length||0}</strong><small>AMV Concepts</small></div>
         <div className="stat-box"><strong>{job.animeAnalysis.candidatesCount||0}</strong><small>Ranked Candidates</small></div>
         <div className="stat-box"><strong>{job.animeAnalysis.bpm} BPM</strong><small>Music Tempo</small></div>
         <div className="stat-box"><strong>{job.animeAnalysis.language==='ja'?'Japanese':'English'}</strong><small>Dialogue Language</small></div>
       </div>
+      {!!job.animeAnalysis.concepts?.length&&<div className="concepts-section">
+        <div className="candidate-heading"><h4>Selected AMV Edit Concepts ({job.animeAnalysis.concepts.length} Ready)</h4><small>Diverse concepts optimized for 9:16 AMV editing</small></div>
+        <div className="concepts-grid">
+          {job.animeAnalysis.concepts.map(c => <div key={c.id} className="concept-card">
+            <div className="concept-top">
+              <span className={'candidate-tag ' + c.category}>{c.category.toUpperCase()}</span>
+              <span className="concept-style-tag">{c.style.replace(/_/g, ' ').toUpperCase()}</span>
+            </div>
+            <strong>{c.title}</strong>
+            <p>{c.description}</p>
+            <div className="concept-footer">
+              <span>{c.duration}s Cut (Hit @ {c.impactTime}s)</span>
+              <span className="concept-score">{c.qualityScore}% Quality</span>
+            </div>
+          </div>)}
+        </div>
+      </div>}
       {!!job.animeAnalysis.candidates?.length&&<div className="candidate-moments-section">
         <div className="candidate-heading"><h4>Ranked Candidate Moments</h4><small>Top {job.animeAnalysis.candidates.length} moments filtered for AMV edit alignment</small></div>
         <div className="candidate-grid">

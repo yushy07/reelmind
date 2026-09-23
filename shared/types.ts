@@ -52,6 +52,7 @@ export interface AnimeEpisodeMetadata {
 }
 
 export type AnimeCandidateCategory = 'action' | 'emotional' | 'dialogue' | 'cinematic';
+export type AnimeEditStyle = 'hard_beat_drop' | 'slow_burn' | 'dialogue_pause' | 'velocity_ramp';
 
 export interface AnimeCandidate {
   id: number;
@@ -75,6 +76,26 @@ export interface AnimeCandidate {
   transientPeak?: number;
 }
 
+export interface AnimeEditConcept {
+  id: number;
+  shotId: number;
+  start: number;
+  end: number;
+  duration: number;
+  impactTime: number;
+  category: AnimeCandidateCategory;
+  style: AnimeEditStyle;
+  title: string;
+  description: string;
+  narrativeImportance: 'high' | 'medium' | 'low';
+  qualityScore: number;
+  motionScore: number;
+  faceScore: number;
+  transientScore: number;
+  hasDialogue: boolean;
+  dialogueText?: string;
+}
+
 export interface AnimeEpisodeAnalysis {
   version: 1;
   metadata: AnimeEpisodeMetadata;
@@ -84,6 +105,8 @@ export interface AnimeEpisodeAnalysis {
   musicBpm?: number;
   candidatesCount?: number;
   candidates?: AnimeCandidate[];
+  conceptsCount?: number;
+  concepts?: AnimeEditConcept[];
 }
 
 export interface AnimeCreateInput {
@@ -126,6 +149,8 @@ export interface Job {
     language?: AnimeLanguage;
     candidatesCount?: number;
     candidates?: AnimeCandidate[];
+    conceptsCount?: number;
+    concepts?: AnimeEditConcept[];
   };
 }
 

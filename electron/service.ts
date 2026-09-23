@@ -10,7 +10,8 @@ import { ModelManager, TURBO } from './models';
 import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
-import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate } from '../shared/types';
+import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate, AnimeEditConcept } from '../shared/types';
+import { selectAnimeMoments } from './anime/selection';
 import { parsePastedTranscript } from './pasted-transcript';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -194,13 +195,18 @@ export class Service {
       const candidates=await this.checkpoint<AnimeCandidate[]>(candidatesFile,d=>Array.isArray(d)&&d.length>0,async()=>{
         const candidateArgs=[path.join(this.workers,'anime_worker.py'),'score-candidates','--source',episodeSource,'--shots',shotsFile,'--audio',audio,'--transcript',transcriptFile,'--models',path.join(this.runtime,'models'),'--output',candidatesFile];
         if(this.renderHardware.cudaSpeechCandidate)candidateArgs.push('--gpu');
-        await run(path.join(this.runtime,'python/python.exe'),candidateArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:86+p.progress*13,message:p.message});}catch{}}});
+        await run(path.join(this.runtime,'python/python.exe'),candidateArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:86+p.progress*7,message:p.message});}catch{}}});
         return JSON.parse(await fs.readFile(candidatesFile,'utf8'));
       },fingerprint({shots:await hash(shotsFile),audio:await hash(audio),transcript:await hash(transcriptFile),v:1}));
+      phase('analyzing',93,'Selecting 3–5 diverse edit concepts');
+      const conceptsFile=path.join(work,'edit_concepts.json');
+      const concepts=await this.checkpoint<AnimeEditConcept[]>(conceptsFile,d=>Array.isArray(d)&&d.length>=1,async()=>{
+        return selectAnimeMoments(candidates,musicMap,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':job.provider}));
+      },fingerprint({candidates:await hash(candidatesFile),v:1}));
       const episodeFile=path.join(work,'episode.json');
-      const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm,candidatesCount:candidates.length,candidates:candidates.slice(0,30)};
+      const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts};
       await atomicJSON(episodeFile,analysis);await this.seal(episodeFile);
-      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${candidates.length} candidate moments, ${musicMap.bpm} BPM`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30)}});
+      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${concepts.length} AMV concepts ready (${musicMap.bpm} BPM)`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts}});
       this.notify(job);
     }catch(error){
       this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});
