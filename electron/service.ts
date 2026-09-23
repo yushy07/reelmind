@@ -12,6 +12,8 @@ import { run } from './process';
 import { probe, render } from './media';
 import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate, AnimeEditConcept } from '../shared/types';
 import { selectAnimeMoments } from './anime/selection';
+import { planAnimeEdit } from './anime/planner';
+import { renderAnimeAMV } from './anime/renderer';
 import { parsePastedTranscript } from './pasted-transcript';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -198,15 +200,58 @@ export class Service {
         await run(path.join(this.runtime,'python/python.exe'),candidateArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:86+p.progress*7,message:p.message});}catch{}}});
         return JSON.parse(await fs.readFile(candidatesFile,'utf8'));
       },fingerprint({shots:await hash(shotsFile),audio:await hash(audio),transcript:await hash(transcriptFile),v:1}));
-      phase('analyzing',93,'Selecting 3–5 diverse edit concepts');
+      phase('analyzing',90,'Selecting 3–5 diverse edit concepts');
       const conceptsFile=path.join(work,'edit_concepts.json');
       const concepts=await this.checkpoint<AnimeEditConcept[]>(conceptsFile,d=>Array.isArray(d)&&d.length>=1,async()=>{
         return selectAnimeMoments(candidates,musicMap,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':job.provider}));
       },fingerprint({candidates:await hash(candidatesFile),v:1}));
+      phase('rendering',92,`Rendering ${concepts.length} vertical 9:16 AMVs`);
+      for(let i=0;i<concepts.length;i++){
+        signal.throwIfAborted();
+        const concept=concepts[i];
+        const id=String(concept.id).padStart(2,'0');
+        const file=path.join(output,`reelmind_${id}.mp4`);
+        const plan=planAnimeEdit(concept,musicMap,shots,30);
+        const planHash=fingerprint({plan,quality:this.store.settings().quality});
+        const previous=job.outputs.find(r=>r.id===id);
+        if(previous?.planHash===planHash&&await exists(file)){
+          try{await probe(this.runtime,file,signal);continue;}catch{}
+        }
+        const clipWork=path.join(work,'amv_'+id);
+        await fs.mkdir(clipWork,{recursive:true});
+        await atomicJSON(path.join(clipWork,'plan.json'),plan);
+        await this.seal(path.join(clipWork,'plan.json'));
+        this.update(job,{message:`Rendering AMV ${i+1} of ${concepts.length} · ${concept.title}`});
+        const partial=file+'.partial.mp4';
+        await renderAnimeAMV(
+          this.runtime,
+          episodeSource,
+          musicPath?musicSource:undefined,
+          plan,
+          partial,
+          clipWork,
+          this.store.settings().quality,
+          this.renderHardware,
+          signal,
+          n=>this.update(job,{progress:92+(i+n)/concepts.length*7}),
+          message=>this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),message])],message})
+        );
+        await fs.rename(partial,file);
+        job.outputs=job.outputs.filter(r=>r.id!==id);
+        job.outputs.push({
+          id,
+          title:concept.title,
+          duration:plan.duration,
+          file,
+          reason:`${concept.category.toUpperCase()} · ${concept.style.replace(/_/g,' ')} (${concept.qualityScore}% match)`,
+          planHash
+        });
+        this.update(job,{outputs:job.outputs});
+      }
       const episodeFile=path.join(work,'episode.json');
       const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts};
       await atomicJSON(episodeFile,analysis);await this.seal(episodeFile);
-      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${concepts.length} AMV concepts ready (${musicMap.bpm} BPM)`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts}});
+      this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} AMV Edits ready to save (${musicMap.bpm} BPM)`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts}});
       this.notify(job);
     }catch(error){
       this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});

@@ -96,6 +96,37 @@ export interface AnimeEditConcept {
   dialogueText?: string;
 }
 
+export interface AnimeShotCut {
+  shotId: number;
+  sourceStart: number;
+  sourceEnd: number;
+  timelineStart: number;
+  timelineEnd: number;
+  duration: number;
+  impactOffset?: number;
+  zoom: number;
+  center: number;
+  endCenter: number;
+  effect?: 'flash' | 'punch' | 'shake' | 'glow' | 'velocity_ramp';
+}
+
+export interface AnimeEditPlan {
+  version: 1;
+  conceptId: number;
+  title: string;
+  style: AnimeEditStyle;
+  category: AnimeCandidateCategory;
+  duration: number;
+  fps: 30;
+  bpm: number;
+  cuts: AnimeShotCut[];
+  audio: {
+    sourceAudioMix: number;
+    musicMix: number;
+    musicOffset: number;
+  };
+}
+
 export interface AnimeEpisodeAnalysis {
   version: 1;
   metadata: AnimeEpisodeMetadata;

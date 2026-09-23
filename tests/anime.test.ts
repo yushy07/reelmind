@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, Settings } from '../shared/types';
+import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, AnimeShotCut, Settings } from '../shared/types';
 import {
   buildGeminiEvaluationPrompt,
   animeEvaluationResponseSchema,
@@ -13,6 +13,9 @@ import {
   selectAnimeMoments,
   type AnimeEvaluationItem
 } from '../electron/anime/selection';
+import { planAnimeEdit } from '../electron/anime/planner';
+import { buildAnimeFilterGraph, renderAnimeAMV } from '../electron/anime/renderer';
+import { probe } from '../electron/media';
 
 const execFileAsync = promisify(execFile);
 
@@ -675,6 +678,309 @@ test('edit_concepts checkpoint caching ensures instant reuse and invalidates on 
     assert.notEqual(stored, expectedHash2, 'Checkpoint should invalidate when candidates change');
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('planAnimeEdit creates structured 9:16 AMV plan with beat-aligned cuts and smart reframing', () => {
+  const concept: AnimeEditConcept = {
+    id: 1,
+    shotId: 2,
+    start: 10.0,
+    end: 18.0,
+    duration: 8.0,
+    impactTime: 14.2,
+    category: 'action',
+    style: 'hard_beat_drop',
+    title: 'Climax Impact Drop',
+    description: 'Decisive counterattack during high-speed exchange',
+    narrativeImportance: 'high',
+    qualityScore: 94,
+    motionScore: 0.85,
+    faceScore: 0.45,
+    transientScore: 0.90,
+    hasDialogue: false
+  };
+
+  const sampleShots: AnimeShot[] = [
+    { id: 1, start: 4.0, end: 10.0, duration: 6.0 },
+    { id: 2, start: 10.0, end: 18.0, duration: 8.0 },
+    { id: 3, start: 18.0, end: 24.0, duration: 6.0 }
+  ];
+
+  const musicMap: MusicMap = {
+    duration: 180,
+    bpm: 140,
+    beats: [10.0, 10.43, 10.86, 11.29, 11.71, 12.14, 12.57, 13.0, 13.43, 13.86, 14.29, 14.71, 15.14],
+    strongBeats: [14.29],
+    energySections: [{ start: 0, end: 180, energy: 0.8 }]
+  };
+
+  const plan = planAnimeEdit(concept, musicMap, sampleShots, 30);
+
+  assert.equal(plan.version, 1);
+  assert.equal(plan.conceptId, 1);
+  assert.equal(plan.fps, 30);
+  assert.equal(plan.bpm, 140);
+  assert.ok(plan.duration >= 8.0 && plan.duration <= 25.0);
+  assert.ok(plan.cuts.length >= 2, `Expected at least 2 cuts, got ${plan.cuts.length}`);
+
+  // Validate cuts timeline progression and bounds
+  let prevTimelineEnd = 0;
+  for (let i = 0; i < plan.cuts.length; i++) {
+    const cut = plan.cuts[i];
+    assert.ok(cut.duration > 0);
+    assert.ok(cut.sourceStart < cut.sourceEnd);
+    assert.equal(cut.timelineStart, prevTimelineEnd);
+    assert.equal(Math.round((cut.timelineStart + cut.duration) * 100) / 100, Math.round(cut.timelineEnd * 100) / 100);
+    prevTimelineEnd = cut.timelineEnd;
+
+    // Smart 9:16 reframing center checks
+    assert.ok(cut.center >= 0.25 && cut.center <= 0.75, `Cut ${i} center out of safe range: ${cut.center}`);
+    assert.ok(cut.endCenter >= 0.25 && cut.endCenter <= 0.75, `Cut ${i} endCenter out of safe range: ${cut.endCenter}`);
+    assert.ok(cut.zoom >= 1.0 && cut.zoom <= 1.35, `Cut ${i} zoom out of bounds: ${cut.zoom}`);
+  }
+
+  // Hard beat drop should assign flash effect to impact cut
+  const impactCut = plan.cuts.find(c => c.effect === 'flash');
+  assert.ok(impactCut, 'Expected an impact cut with flash effect for hard_beat_drop');
+
+  // Audio mix check
+  assert.ok(plan.audio.sourceAudioMix > 0.3 && plan.audio.sourceAudioMix <= 1.0);
+  assert.ok(plan.audio.musicMix > 0.5 && plan.audio.musicMix <= 1.0);
+});
+
+test('planAnimeEdit assigns distinct music offsets and style effects for diverse concepts', () => {
+  const musicMap: MusicMap = {
+    duration: 180,
+    bpm: 130,
+    beats: [5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0],
+    strongBeats: [15.0, 35.0, 55.0, 75.0],
+    energySections: []
+  };
+
+  const sampleShots: AnimeShot[] = [
+    { id: 1, start: 0, end: 10, duration: 10 },
+    { id: 2, start: 10, end: 20, duration: 10 },
+    { id: 3, start: 20, end: 30, duration: 10 }
+  ];
+
+  const conceptAction: AnimeEditConcept = {
+    id: 1,
+    shotId: 1,
+    start: 0,
+    end: 10,
+    duration: 10,
+    impactTime: 4.5,
+    category: 'action',
+    style: 'hard_beat_drop',
+    title: 'Action Cut',
+    description: '',
+    narrativeImportance: 'high',
+    qualityScore: 90,
+    motionScore: 0.9,
+    faceScore: 0.1,
+    transientScore: 0.8,
+    hasDialogue: false
+  };
+
+  const conceptDialogue: AnimeEditConcept = {
+    id: 2,
+    shotId: 2,
+    start: 10,
+    end: 20,
+    duration: 10,
+    impactTime: 14.0,
+    category: 'dialogue',
+    style: 'dialogue_pause',
+    title: 'Dialogue Cut',
+    description: '',
+    narrativeImportance: 'high',
+    qualityScore: 88,
+    motionScore: 0.3,
+    faceScore: 0.8,
+    transientScore: 0.4,
+    hasDialogue: true,
+    dialogueText: 'I will never give up!'
+  };
+
+  const conceptCinematic: AnimeEditConcept = {
+    id: 3,
+    shotId: 3,
+    start: 20,
+    end: 30,
+    duration: 10,
+    impactTime: 25.0,
+    category: 'cinematic',
+    style: 'velocity_ramp',
+    title: 'Cinematic Cut',
+    description: '',
+    narrativeImportance: 'medium',
+    qualityScore: 85,
+    motionScore: 0.7,
+    faceScore: 0.3,
+    transientScore: 0.6,
+    hasDialogue: false
+  };
+
+  const plan1 = planAnimeEdit(conceptAction, musicMap, sampleShots);
+  const plan2 = planAnimeEdit(conceptDialogue, musicMap, sampleShots);
+  const plan3 = planAnimeEdit(conceptCinematic, musicMap, sampleShots);
+
+  // Staggered music offsets so edits don't duplicate music segments
+  assert.notEqual(plan1.audio.musicOffset, plan2.audio.musicOffset);
+  assert.notEqual(plan2.audio.musicOffset, plan3.audio.musicOffset);
+
+  // Dialogue style should prioritize anime audio over music
+  assert.ok(plan2.audio.sourceAudioMix > plan1.audio.sourceAudioMix);
+  assert.ok(plan2.audio.musicMix < plan1.audio.musicMix);
+
+  // Velocity ramp should include velocity_ramp effect
+  const hasVelocity = plan3.cuts.some(c => c.effect === 'velocity_ramp');
+  assert.ok(hasVelocity);
+});
+
+test('buildAnimeFilterGraph produces valid FFmpeg filter graph string for vertical 9:16 AMV', () => {
+  const plan: AnimeEditPlan = {
+    version: 1,
+    conceptId: 1,
+    title: 'Test AMV',
+    style: 'hard_beat_drop',
+    category: 'action',
+    duration: 12.5,
+    fps: 30,
+    bpm: 135,
+    cuts: [
+      {
+        shotId: 1,
+        sourceStart: 1.0,
+        sourceEnd: 5.0,
+        timelineStart: 0.0,
+        timelineEnd: 4.0,
+        duration: 4.0,
+        zoom: 1.05,
+        center: 0.5,
+        endCenter: 0.52
+      },
+      {
+        shotId: 2,
+        sourceStart: 5.0,
+        sourceEnd: 13.5,
+        timelineStart: 4.0,
+        timelineEnd: 12.5,
+        duration: 8.5,
+        zoom: 1.20,
+        center: 0.48,
+        endCenter: 0.48,
+        effect: 'flash'
+      }
+    ],
+    audio: {
+      sourceAudioMix: 0.6,
+      musicMix: 0.85,
+      musicOffset: 12.0
+    }
+  };
+
+  // With background music
+  const graphWithMusic = buildAnimeFilterGraph(plan, true);
+  assert.ok(graphWithMusic.includes('trim=start=1:end=5'));
+  assert.ok(graphWithMusic.includes('crop=1080:1920:x='));
+  assert.ok(graphWithMusic.includes('concat=n=2:v=1:a=0'));
+  assert.ok(graphWithMusic.includes('[1:a]atrim=start=12:end=24.5'));
+  assert.ok(graphWithMusic.includes('amix=inputs=2'));
+  assert.ok(graphWithMusic.includes('loudnorm=I=-14'));
+  assert.ok(graphWithMusic.includes('[vout]'));
+  assert.ok(graphWithMusic.includes('[aout]'));
+
+  // Without background music (uses episode audio directly)
+  const graphNoMusic = buildAnimeFilterGraph(plan, false);
+  assert.ok(!graphNoMusic.includes('[1:a]'));
+  assert.ok(!graphNoMusic.includes('amix=inputs=2'));
+  assert.ok(graphNoMusic.includes('[aepisode]loudnorm=I=-14'));
+});
+
+test('renderAnimeAMV renders valid vertical 1080x1920 MP4 on test media', async () => {
+  const root = path.join(__dirname, '..');
+  const runtime = path.join(root, 'runtime');
+  const testVideo = path.join(root, '.test-data', 'render', 'test-source.mp4');
+  const testAudio = path.join(root, '.test-data', 'pipeline', 'work', 'fb912bdc-29d3-49dd-b3ef-b9e388aacaa0', 'audio.wav');
+
+  if (!await fs.stat(testVideo).catch(() => null) || !await fs.stat(path.join(runtime, 'ffmpeg.exe')).catch(() => null)) {
+    return; // skip if test video or ffmpeg not present in environment
+  }
+
+  const tmpWork = path.join(root, '.test-data', 'render_amv_test_' + Date.now());
+  await fs.mkdir(tmpWork, { recursive: true });
+
+  try {
+    const outputMp4 = path.join(tmpWork, 'test_amv_out.mp4');
+    const plan: AnimeEditPlan = {
+      version: 1,
+      conceptId: 1,
+      title: 'Short Test AMV',
+      style: 'hard_beat_drop',
+      category: 'action',
+      duration: 3.5,
+      fps: 30,
+      bpm: 130,
+      cuts: [
+        {
+          shotId: 1,
+          sourceStart: 0.0,
+          sourceEnd: 1.5,
+          timelineStart: 0.0,
+          timelineEnd: 1.5,
+          duration: 1.5,
+          zoom: 1.05,
+          center: 0.5,
+          endCenter: 0.5
+        },
+        {
+          shotId: 2,
+          sourceStart: 1.5,
+          sourceEnd: 3.5,
+          timelineStart: 1.5,
+          timelineEnd: 3.5,
+          duration: 2.0,
+          zoom: 1.15,
+          center: 0.5,
+          endCenter: 0.5,
+          effect: 'flash'
+        }
+      ],
+      audio: {
+        sourceAudioMix: 0.6,
+        musicMix: 0.8,
+        musicOffset: 0.0
+      }
+    };
+
+    let reportedProgress = 0;
+    await renderAnimeAMV(
+      runtime,
+      testVideo,
+      await fs.stat(testAudio).catch(() => null) ? testAudio : undefined,
+      plan,
+      outputMp4,
+      tmpWork,
+      'balanced',
+      { nvenc: true, cpuThreads: 4 },
+      new AbortController().signal,
+      prog => { reportedProgress = prog; }
+    );
+
+    assert.ok(await fs.stat(outputMp4).catch(() => null), 'Output MP4 must exist');
+    assert.ok(reportedProgress > 0, 'Progress must be reported during render');
+
+    // Probe the rendered output
+    const meta = await probe(runtime, outputMp4, undefined, 1.0);
+    assert.equal(meta.width, 1080);
+    assert.equal(meta.height, 1920);
+    assert.equal(meta.videoCodec, 'h264');
+    assert.equal(meta.audioCodec, 'aac');
+    assert.ok(meta.duration >= 3.0 && meta.duration <= 4.5);
+  } finally {
+    await fs.rm(tmpWork, { recursive: true, force: true }).catch(() => {});
   }
 });
 

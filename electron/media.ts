@@ -2,11 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { run } from './process';
 import type { EditPlan } from '../shared/types';
-export async function probe(runtime:string,file:string,signal?:AbortSignal){
+export async function probe(runtime:string,file:string,signal?:AbortSignal,minDuration=30){
   const data=JSON.parse(await run(path.join(runtime,'ffprobe.exe'),['-v','error','-show_format','-show_streams','-of','json',file],{signal}));
   const video=data.streams?.find((s:any)=>s.codec_type==='video'),audio=data.streams?.find((s:any)=>s.codec_type==='audio');
   const duration=Number(data.format?.duration);
-  if(!video||!audio||!Number.isFinite(duration)||duration<30)throw new Error('The video needs a readable picture, audio and at least 30 seconds of content.');
+  if(!video||!audio||!Number.isFinite(duration)||duration<minDuration)throw new Error(`The video needs a readable picture, audio and at least ${minDuration} seconds of content.`);
   const [numerator,denominator]=String(video.avg_frame_rate||video.r_frame_rate||'30/1').split('/').map(Number);const fps=denominator?numerator/denominator:30;
   return {duration,width:Number(video.width),height:Number(video.height),videoCodec:video.codec_name,audioCodec:audio.codec_name,fps:Number.isFinite(fps)?fps:30};
 }

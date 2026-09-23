@@ -8,7 +8,7 @@ import {TranscriptionSettings} from './TranscriptionSettings';
 declare global {interface Window{reelmind?:API}}
 const api=window.reelmind;
 const podcastStages=['importing','transcribing','framing','analyzing','rendering','completed'];
-const animeStages=['importing','scenes','music','transcribing','completed'];
+const animeStages=['importing','scenes','music','transcribing','analyzing','rendering','completed'];
 const labels:Record<string,string>={queued:'Queued',importing:'Importing',scenes:'Detecting shots',music:'Mapping music',transcribing:'Transcribing',framing:'Finding speakers',analyzing:'Finding moments',rendering:'Rendering',completed:'Ready',paused:'Paused',failed:'Needs attention',expired:'Expired'};
 const duration=(seconds:number)=>{const total=Math.round(Math.max(0,seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;};
 function App(){
@@ -56,10 +56,10 @@ function ProjectRows({jobs,open}:{jobs:Job[];open:(id:string)=>void}){
     const isAnime=j.studio==='anime';
     const activeStages=(isAnime?animeStages:podcastStages).slice(0,-1);
     const working=activeStages.includes(j.stage);
-    const details=[isAnime?`ANIME (${j.input.language?.toUpperCase()||'JA'})`:j.input.kind==='url'?'VIDEO LINK':'LOCAL VIDEO',new Date(j.createdAt).toLocaleDateString(),j.duration?duration(j.duration):null,isAnime?(j.animeAnalysis?`${j.animeAnalysis.shotCount} shots · ${j.animeAnalysis.bpm} BPM`:'Analysis DB'):j.outputs.length?`${j.outputs.length} ${j.outputs.length===1?'Reel':'Reels'} ready`:null].filter(Boolean);
+    const details=[isAnime?`ANIME (${j.input.language?.toUpperCase()||'JA'})`:j.input.kind==='url'?'VIDEO LINK':'LOCAL VIDEO',new Date(j.createdAt).toLocaleDateString(),j.duration?duration(j.duration):null,isAnime?(j.outputs.length?`${j.outputs.length} AMV ${j.outputs.length===1?'Edit':'Edits'}`:j.animeAnalysis?`${j.animeAnalysis.shotCount} shots · ${j.animeAnalysis.bpm} BPM`:'Analysis DB'):j.outputs.length?`${j.outputs.length} ${j.outputs.length===1?'Reel':'Reels'} ready`:null].filter(Boolean);
     return <button className="project-row" key={j.id} onClick={()=>open(j.id)} aria-label={`Open ${j.name||j.title}, ${labels[j.stage]}`}>
       <span className="project-thumb">{isAnime?<Sparkles size={23}/>:<Film size={23}/>}</span>
-      <span className="project-row-content"><span className="project-row-kicker">{details.join('  ·  ')}</span><strong>{j.name||j.title}</strong><small>{working?j.message:j.stage==='completed'?(isAnime?'Analysis Database ready':j.outputs.every(r=>r.savedPath)?'Saved to your folder':'Ready to review and save'):j.stage==='paused'?'Resume before recovery expires':j.stage==='failed'?'Open to review and retry':j.title}</small>{working&&<progress className="row-progress" value={j.progress} max={100} aria-label={`${j.name||j.title} progress`}/>}</span>
+      <span className="project-row-content"><span className="project-row-kicker">{details.join('  ·  ')}</span><strong>{j.name||j.title}</strong><small>{working?j.message:j.stage==='completed'?(isAnime?(j.outputs.length?`${j.outputs.length} AMV Edits ready to save`:'Analysis Database ready'):j.outputs.every(r=>r.savedPath)?'Saved to your folder':'Ready to review and save'):j.stage==='paused'?'Resume before recovery expires':j.stage==='failed'?'Open to review and retry':j.title}</small>{working&&<progress className="row-progress" value={j.progress} max={100} aria-label={`${j.name||j.title} progress`}/>}</span>
       <span className={'badge '+j.stage}>{labels[j.stage]}{working?` · ${Math.floor(j.progress)}%`:''}</span><ChevronRight className="project-row-chevron" size={18}/>
     </button>;
   })}</div>;

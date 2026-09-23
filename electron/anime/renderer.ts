@@ -1,0 +1,183 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { run } from '../process';
+import { probe } from '../media';
+import type { AnimeEditPlan } from '../../shared/types';
+
+/**
+ * Builds the complete FFmpeg filter_complex string for an AMV edit.
+ * Trims shots, reframes to 9:16 portrait, applies camera punch/flash dynamics,
+ * and mixes episode audio with the background music track.
+ */
+export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): string {
+  const cuts = plan.cuts;
+  const videoTrims: string[] = [];
+  const audioTrims: string[] = [];
+
+  cuts.forEach((cut, i) => {
+    const dur = Math.max(0.1, cut.duration);
+    const scaledW = Math.ceil(1080 * cut.zoom / 2) * 2;
+    const scaledH = Math.ceil(1920 * cut.zoom / 2) * 2;
+    const travel = cut.endCenter - cut.center;
+    const centerExpr = `${cut.center}+(${travel})*(0.5-0.5*cos(PI*min(t/${dur},1)))`;
+
+    // Dynamic camera crop & jitter on shake
+    let cropX = `max(0,min(iw-ow,iw*(${centerExpr})-ow/2))`;
+    let cropY = `max(0,(ih-oh)*0.3)`;
+    if (cut.effect === 'shake') {
+      cropX = `max(0,min(iw-ow,iw*(${centerExpr})-ow/2+if(lt(t,0.22),sin(t*80)*8,0)))`;
+      cropY = `max(0,(ih-oh)*0.3+if(lt(t,0.22),cos(t*80)*8,0))`;
+    }
+
+    let filterChain = `[0:v]trim=start=${cut.sourceStart}:end=${cut.sourceEnd},setpts=PTS-STARTPTS`;
+    filterChain += `,scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=1080:1920:x='${cropX}':y='${cropY}'`;
+
+    // Style effects (white flash on drop using exposure, color saturation on glow using vibrance)
+    if (cut.effect === 'flash') {
+      filterChain += `,exposure=exposure=1.5:enable='lt(t,0.18)'`;
+    } else if (cut.effect === 'glow') {
+      filterChain += `,vibrance=intensity=0.45`;
+    }
+
+    filterChain += `,setsar=1,fps=${plan.fps}[v${i}]`;
+    videoTrims.push(filterChain);
+
+    // Audio trim for this shot cut with standardized sample rate and channels
+    audioTrims.push(`[0:a]atrim=start=${cut.sourceStart}:end=${cut.sourceEnd},asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`);
+  });
+
+  // Video stream concatenation
+  const vconcatInputs = cuts.map((_, i) => `[v${i}]`).join('');
+  const vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,format=yuv420p[vout]`;
+
+  // Episode audio concatenation
+  const aconcatInputs = cuts.map((_, i) => `[a${i}]`).join('');
+  const aconcat = `${aconcatInputs}concat=n=${cuts.length}:v=0:a=1,volume=${plan.audio.sourceAudioMix}[aepisode]`;
+
+  let finalAudio: string;
+  if (hasMusic) {
+    const musicTrim = `[1:a]atrim=start=${plan.audio.musicOffset}:end=${plan.audio.musicOffset + plan.duration},asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=${plan.audio.musicMix}[amusic]`;
+    const amix = `[aepisode][amusic]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-14:TP=-1.0:LRA=9[aout]`;
+    return [...videoTrims, ...audioTrims, vconcat, aconcat, musicTrim, amix].join(';\n');
+  } else {
+    finalAudio = `[aepisode]loudnorm=I=-14:TP=-1.0:LRA=9[aout]`;
+    return [...videoTrims, ...audioTrims, vconcat, aconcat, finalAudio].join(';\n');
+  }
+}
+
+/**
+ * Renders a full 1080x1920 vertical AMV clip using NVENC GPU acceleration
+ * with graceful CPU fallbacks and technical validation.
+ */
+export async function renderAnimeAMV(
+  runtime: string,
+  sourceVideo: string,
+  sourceMusic: string | undefined,
+  plan: AnimeEditPlan,
+  outputMp4: string,
+  workDir: string,
+  quality: string,
+  hardware: { nvenc: boolean; cpuThreads: number },
+  signal: AbortSignal,
+  report: (progress: number) => void,
+  fallback?: (message: string) => void
+): Promise<void> {
+  const hasMusic = !!sourceMusic && (await fs.stat(sourceMusic).catch(() => null)) !== null;
+  const graph = buildAnimeFilterGraph(plan, hasMusic);
+
+  const graphScript = path.join(workDir, `render_amv_${plan.conceptId}.ffscript`);
+  await fs.writeFile(graphScript, graph);
+
+  const baseArgs = [
+    '-hide_banner',
+    '-y',
+    '-filter_complex_threads', String(hardware.cpuThreads),
+    '-i', sourceVideo
+  ];
+
+  if (hasMusic) {
+    baseArgs.push('-i', sourceMusic!);
+  }
+
+  baseArgs.push(
+    '-filter_complex', graph,
+    '-map', '[vout]',
+    '-map', '[aout]',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-ar', '48000',
+    '-movflags', '+faststart',
+    '-progress', 'pipe:1',
+    '-nostats'
+  );
+
+  const encode = async (codecArgs: string[]) =>
+    run(path.join(runtime, 'ffmpeg.exe'), [...baseArgs, ...codecArgs, outputMp4], {
+      cwd: workDir,
+      signal,
+      progress: line => {
+        if (line.startsWith('out_time_us=')) {
+          const currentSec = Number(line.slice(12)) / 1e6;
+          report(Math.min(0.99, currentSec / plan.duration));
+        }
+      }
+    });
+
+  // 1. Attempt hardware-accelerated NVENC encoding
+  let rendered = false;
+  if (hardware.nvenc) {
+    try {
+      await encode([
+        '-c:v', 'h264_nvenc',
+        '-preset', 'p4',
+        '-cq', quality === 'high' ? '19' : '22',
+        '-pix_fmt', 'yuv420p'
+      ]);
+      rendered = true;
+    } catch {
+      signal.throwIfAborted();
+      fallback?.('GPU NVENC encoding unavailable; using CPU H.264');
+    }
+  }
+
+  // 2. Fallback to openh264
+  if (!rendered) {
+    try {
+      await encode([
+        '-c:v', 'libopenh264',
+        '-b:v', quality === 'high' ? '12M' : '8M',
+        '-maxrate', quality === 'high' ? '16M' : '11M',
+        '-bufsize', '20M',
+        '-threads', String(hardware.cpuThreads),
+        '-pix_fmt', 'yuv420p'
+      ]);
+      rendered = true;
+    } catch {
+      signal.throwIfAborted();
+      fallback?.('Software encoder unavailable; trying Windows Media Foundation');
+    }
+  }
+
+  // 3. Fallback to Windows Media Foundation h264_mf
+  if (!rendered) {
+    await encode([
+      '-c:v', 'h264_mf',
+      '-b:v', quality === 'high' ? '12M' : '8M',
+      '-pix_fmt', 'yuv420p'
+    ]);
+  }
+
+  // 4. Strict Quality Control Validation
+  const metadata = await probe(runtime, outputMp4, signal, 1.0);
+  if (
+    metadata.width !== 1080 ||
+    metadata.height !== 1920 ||
+    metadata.videoCodec !== 'h264' ||
+    metadata.audioCodec !== 'aac' ||
+    metadata.duration < 2.0
+  ) {
+    throw new Error(
+      `Rendered AMV failed quality control: ${metadata.width}x${metadata.height}, ${metadata.videoCodec}, ${metadata.duration}s`
+    );
+  }
+}
