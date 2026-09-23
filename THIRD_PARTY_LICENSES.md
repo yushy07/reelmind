@@ -491,9 +491,13 @@ Generated from the dependencies packaged with REELMIND 2026-09-23. Package metad
 | anyio | 4.15.1 | MIT |
 | av | 18.1.0 | BSD-3-Clause |
 | certifi | 2026.7.22 | MPL-2.0 |
+| cffi | 2.1.1 | MIT-0 |
+| charset-normalizer | 3.5.1 | MIT |
 | click | 8.5.0 | BSD-3-Clause |
+| cloudpickle | 3.1.2 | BSD-3-Clause |
 | colorama | 0.4.6 | See distribution metadata |
 | ctranslate2 | 4.8.2 | MIT |
+| decorator | 5.3.1 | BSD-2-Clause |
 | faster-whisper | 1.2.1 | MIT |
 | filelock | 4.0.1 | MIT |
 | flatbuffers | 25.12.19 | Apache 2.0 |
@@ -504,15 +508,34 @@ Generated from the dependencies packaged with REELMIND 2026-09-23. Package metad
 | httpx | 0.28.1 | BSD-3-Clause |
 | huggingface_hub | 1.32.0 | Apache-2.0 |
 | idna | 3.20 | BSD-3-Clause |
+| joblib | 1.6.0 | BSD-3-Clause |
+| lazy-loader | 0.6 | BSD-3-Clause |
+| librosa | 1.0.0 | ISC |
+| llvmlite | 0.49.0 | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception |
+| msgpack | 1.2.2 | Apache-2.0 |
+| narwhals | 2.26.0 | MIT |
+| numba | 0.67.0 | BSD |
 | numpy | 2.2.6 | Copyright (c) 2005-2024, NumPy Developers. |
 | onnxruntime | 1.30.0 | MIT License |
+| opencv-python | 5.0.0.93 | Apache 2.0 |
 | opencv-python-headless | 4.11.0.86 | Apache 2.0 |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause |
 | pip | 26.2.1 | MIT |
+| platformdirs | 4.11.12 | MIT |
+| pooch | 1.9.0 | BSD-3-Clause |
 | protobuf | 7.36.2 | 3-Clause BSD License |
+| pycparser | 3.0 | BSD-3-Clause |
 | PyYAML | 6.0.3 | MIT |
+| requests | 2.34.2 | Apache-2.0 |
+| scenedetect | 0.7.1 | BSD-3-Clause |
+| scikit-learn | 1.9.1 | BSD-3-Clause |
+| scipy | 1.18.1 | Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers. |
 | sherpa_onnx | 1.13.8 | Apache licensed, as found in the LICENSE file |
 | sherpa-onnx-core | 1.13.8 | Apache-2.0 |
+| soundfile | 0.14.0 | BSD 3-Clause License |
+| soxr | 1.1.0 | LGPL-2.1-or-later |
+| threadpoolctl | 3.7.0 | BSD-3-Clause |
 | tokenizers | 0.23.2 | See distribution metadata |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |
 | typing_extensions | 4.16.0 | PSF-2.0 |
+| urllib3 | 2.8.0 | MIT |

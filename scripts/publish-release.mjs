@@ -58,13 +58,16 @@ async function main() {
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
-- Refined project creation, progress/recovery visibility, and finished-Reels results interface
-- Bundled local MiniLM semantic clip diversity with lexical fallback
-- Optional verified Whisper Turbo download; Standard remains default
-- Optional plain-text or timestamped SRT/VTT transcript paste in New Project
-- Per-project model snapshots, CPU fallback and resumable model downloads
-- Includes Whisper small, MiniLM, FFmpeg and the local runtime; Turbo is not bundled
-- Personal-use prerelease: real Hindi/Hinglish, Japanese and mixed-language evaluation remains in progress; see docs/MODEL_UPGRADE_VALIDATION.md
+- **Dedicated Anime Studio Workspace:** Completely separate engine for full 24-minute Japanese/English anime episodes and AMV creation, keeping Podcast Studio completely intact.
+- **Deep Preprocessing Engine:** Scene/shot detection with PySceneDetect & FFmpeg, audio extraction, frame indexing, and Librosa music rhythm analysis (BPM, beats, downbeats, onset energy curves).
+- **Multi-Signal Visual & Audio Intelligence:** OpenCV motion deltas, Laplacian sharpness, anime face detection/prominence scoring, audio transients, and dialogue mapping.
+- **Impact Frame Detection:** Pinpoints the exact climax hit moment within each shot to align with musical beat drops.
+- **3–5 Diverse AMV Concepts:** Gemini Free tier evaluation + local diversity optimizer with automatic offline/quota fallback.
+- **AMV Edit Planner & Smart 9:16 Reframing:** Beat-synchronized cut sequencing (Intro/Build → Climax Hit → Payoff) and dynamic character-centered camera reframing with smooth pan & zoom.
+- **Advanced Neural Effects & NVENC Rendering:** Velocity ramping with temporal smoothing, dual-stream character isolation & depth-of-field background blur, flash on impact, and hardware-accelerated NVENC 1080×1920 MP4 rendering.
+- **Interactive Studio Controls:** Video player previews, live style switcher (Hard Beat, Velocity, Slow Burn, Dialogue), dual-track audio mixer sliders, and 1-click instant re-rendering.
+- **RTX 3050 VRAM Management:** Strict two-pass memory lifecycle with immediate CUDA cache and model disposal preventing VRAM OOM.
+- **Crash Recovery & Checkpointing:** Comprehensive SHA-256 checkpoints and automated recovery across scene, music, analysis, and render stages.
 
 Source commit: ${commit}
 

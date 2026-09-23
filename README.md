@@ -4,13 +4,13 @@
 
 **A personal, Windows-only studio for turning long videos into Instagram-ready Reels.** Import a local video or public link, let the app find strong moments, and save the finished vertical clips wherever you want. No timeline editor, subscription, added music, or developer tools are needed for the installed app.
 
-[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.2.1) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
+[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.3.0) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
 
-> **Current release:** [v0.2.1 is a personal-use prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.1). The installer is unsigned, and real Hindi/Hinglish, Japanese, and mixed-language evaluation is still in progress. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
+> **Current release:** [v0.3.0 is a personal-use prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0). The installer is unsigned, and real Hindi/Hinglish, Japanese, and mixed-language evaluation is still in progress. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
 
-> **Source status:** the repository matches the v0.2.1 prerelease source. It includes the project setup, progress and recovery, and results-screen polish, alongside optional Whisper Turbo and pasted-transcript input. Earlier releases remain available.
+> **Source status:** the repository matches the v0.3.0 release source. It introduces the complete **Anime Studio** alongside the existing **Podcast Studio**, featuring multimodal scene analysis, music beat mapping, smart 9:16 reframing, neural effects, and interactive studio controls. Earlier releases remain available.
 
-**Moving to another Windows PC?** Download **`REELMIND.Setup.0.2.1.exe`** from the [v0.2.1 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.1), run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
+**Moving to another Windows PC?** Download **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0), run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
 
 ## Inside the app
 
@@ -21,6 +21,25 @@
 | ![Local video import screen](docs/screenshots/new-project.png) | ![Settings screen showing the local engine ready](docs/screenshots/settings.png) |
 
 Screenshots are from the desktop app. The Settings image contains no API keys.
+
+## Two Dedicated Studios
+
+### 🎙️ Podcast Studio
+- **Dialogue-driven vertical Reels:** Converts long-form podcasts, interviews, and presentations into 30–60s vertical clips.
+- **Multilingual speech recognition:** Local faster-whisper (small or optional Turbo) transcribes English, Hindi/Hinglish, and Japanese with burned-in animated word captions.
+- **Active-speaker tracking:** Sherpa ONNX speaker embeddings and OpenCV YuNet face detection track and reframe active speakers.
+- **Semantic candidate ranking:** MiniLM local vector embeddings compare candidate moments across the full video before selecting up to 12 diverse clips.
+
+### 🎌 Anime Studio (New in v0.3.0)
+- **Full episode to AMV generation:** Takes full 24-minute Japanese or English anime episodes along with any music track to automatically build 3–5 beat-synchronized vertical 9:16 AMVs.
+- **Deep Preprocessing Engine:** Scene and shot detection via PySceneDetect & FFmpeg, audio extraction, frame indexing, and Librosa music beat analysis (BPM, beats, downbeats, onset energy curves).
+- **Multi-Signal Visual & Audio Intelligence:** OpenCV motion deltas, Laplacian sharpness, anime face prominence scoring with YuNet fallback, audio transients, and dialogue mapping.
+- **Impact Frame Detection ($T_{\text{impact}}$):** Computes exact climax hit timestamps within shots to lock action moments directly onto musical beat drops rather than generic clip starts.
+- **3–5 Diverse AMV Concepts:** Gemini Free tier evaluation + local diversity optimizer enforcing distinct vibes (`Action`, `Emotional`, `Dialogue`, `Cinematic`) and $\ge 2.5$s temporal separation.
+- **AMV Edit Planner & Smart 9:16 Reframing:** Beat-synchronized cut sequencing (Intro/Build $\to$ Climax Hit $\to$ Payoff) with dynamic character-centered camera reframing ($X \in [0.28, 0.72]$) and dynamic pan/zoom.
+- **Advanced Neural Effects:** Velocity ramping with temporal smoothing (`tblend`), dual-stream character isolation & depth-of-field background blur, and white impact flashes.
+- **Interactive Studio Controls:** Native HTML5 `<video>` preview grid, live style switcher (`Hard Beat`, `Velocity`, `Slow Burn`, `Dialogue`), dual-track audio mixer sliders (Dialogue/SFX vs Music), and 1-click instant re-rendering.
+- **RTX 3050 VRAM Management:** Strict two-pass memory lifecycle with immediate CUDA cache and model disposal preventing VRAM OOM on 4GB/6GB GPUs.
 
 ## What it makes
 
@@ -35,20 +54,20 @@ Screenshots are from the desktop app. The Settings image contains no API keys.
 
 ![Local transcription mode and optional Turbo download](docs/screenshots/transcription-settings.png)
 
-See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. This prerelease is available for early use; v0.1.0 and v0.1.1 remain unchanged.
+See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. Earlier releases remain unchanged.
 
-- Up to **12** automatically selected Reels per video; fewer are fine, and weak moments are not added to meet a quota.
-- **30–60 seconds** each, exported as **1080 × 1920 MP4** with H.264 video and AAC audio.
-- Burned-in animated captions, punch-ins, speaker-aware framing, and source-audio-only sound.
-- English, Hindi/Hinglish, and Japanese are the first target languages. Captions follow the transcribed speech where possible.
-- Finished Reels are final in V1: there is no in-app editing, cover, hashtag, or post-caption generator.
+- Up to **12** automatically selected Reels per video in Podcast Studio, and **3–5** distinct AMVs in Anime Studio.
+- **30–60 seconds** each, exported as **1080 × 1920 MP4** with H.264 video (NVENC or CPU) and AAC audio.
+- Burned-in animated captions, punch-ins, speaker-aware framing for podcasts; dynamic pan/zoom, beat sync, and neural effects for anime.
 
 ## Install and use
 
-1. Download and run **`REELMIND.Setup.0.2.1.exe`** from the [v0.2.1 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.1).
+1. Download and run **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0).
 2. Open **REELMIND** from the desktop shortcut or Windows Start menu.
-3. Choose **New project**, then a local MP4, MOV, MKV, AVI, or WebM file, or a public YouTube/direct-video HTTPS link. Optionally paste a transcript in the same screen: plain text or timestamped SRT/VTT. Select **Generate Reels**.
-4. When processing finishes, open **Your Reels** and choose **Save Reels**. Select a folder outside the app's installation and data folders. REELMIND verifies each saved file before removing its internal copy.
+3. Choose **Podcast Studio** or **Anime Studio**:
+   - For **Podcast**: Select a local video or public link, optionally paste a transcript, and choose **Generate Reels**.
+   - For **Anime**: Select an anime episode, select language (`Japanese` or `English`), pick a music track, and choose **Analyze & Create AMVs**.
+4. When processing finishes, preview in the interactive player, adjust styles or audio mix if desired, and choose **Save Reels** to export.
 
 The app accepts public, non-live, non-DRM links; it does not bypass authentication, paywalls, or site restrictions. Your original local video is never modified.
 
@@ -97,8 +116,10 @@ flowchart TB
 | Desktop UI | `src/` | Home, import, processing, results, and settings screens |
 | Electron boundary | `electron/main.ts`, `electron/preload.ts` | Window, dialogs, notifications, and validated renderer calls |
 | Jobs and storage | `electron/service.ts`, `electron/storage.ts` | Pipeline, checkpoints, SQLite state, save verification, and cleanup |
-| Analysis and editing | `electron/providers.ts`, `electron/core.ts`, `electron/media.ts` | Provider fallback, clip selection, edit plans, and rendering |
-| Local worker | `workers/worker.py` | Transcription, voice/speaker features, and face analysis |
+| Podcast editing | `electron/providers.ts`, `electron/core.ts`, `electron/media.ts` | Provider fallback, clip selection, edit plans, and rendering |
+| Anime engine | `electron/anime/` (`planner.ts`, `renderer.ts`, `selection.ts`) | AMV edit planning, smart 9:16 reframing, neural effects, and NVENC rendering |
+| Podcast worker | `workers/worker.py` | Transcription, voice/speaker features, and face analysis |
+| Anime worker | `workers/anime_worker.py` | Shot boundary detection, Librosa music rhythm analysis, and multi-signal scoring |
 | Packaged tools | `runtime/` | Local executables, models, and fonts; generated locally, not committed |
 
 ### Privacy and provider fallback
