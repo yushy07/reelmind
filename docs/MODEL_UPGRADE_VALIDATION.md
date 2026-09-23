@@ -20,6 +20,7 @@
 - Native Windows UI check: installed home screen opens, local engine is Ready, Standard is selected, Turbo download controls are present, and credential-presence indicators remain intact. No keys were displayed or changed.
 - Closing and reopening the installed app succeeds. Its `app.asar` SHA-256 matches the tested unpacked build. Git-history API-key pattern scan returned no matches.
 - Real 1.62 GB Turbo download completed and passed all pinned file checksums after resuming network interruptions. CPU INT8 transcription on the local speech fixture produced three segments.
+- User-supplied cricket commentary excerpt: decoded duration 54.9935 seconds. Standard produced 16 segments / 115 words; Turbo produced 13 segments / 120 words. Both detected English and had zero invalid word intervals (negative start, nonpositive interval or end outside audio tolerance). Turbo CPU run took 309.4 seconds. This is a functional timing check, not a human-scored accuracy benchmark; names still need review. A comparable Standard wall-time measurement was not captured.
 - Real MiniLM inference: identical 1.0000, English paraphrase 0.8917, Hindi equivalent 0.9254, Japanese equivalent 0.9366, unrelated topic -0.0483. Threshold 0.88 is conservative, not a general quality guarantee.
 - Long input windowing and distinct same-topic stories smoke checks.
 - Full Standard local pipeline: two rendered Reels, unchanged original and verified external saves. This run used software H.264; it is not evidence of NVENC performance.
@@ -29,7 +30,8 @@
 
 ## Release gates still in progress
 
-- Commentary comparison using the user-supplied public video `nJOpwa49PqI`.
 - Real Hindi/Hinglish, Japanese and mixed-language transcription evaluation. The supplied cricket highlights video is tagged English, not a multilingual benchmark. The semantic text smoke check above does not substitute for speech/caption evaluation.
+
+The installed local app is updated to 0.2.0; public 0.2.0 release publication remains deferred until the language evaluation gate is satisfied. Existing v0.1.0 and v0.1.1 downloads are untouched.
 
 No accuracy improvement or transcription speed claim should be made without a measured comparison. Existing public installers remain available while the new release is validated.
