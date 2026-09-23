@@ -9,13 +9,15 @@
 - Standard remains default. Jobs snapshot requested model/revision and retain effective small fallback on resume. Cancelling work does not trigger fallback.
 - Settings download state, pause/retry, taskbar progress, project fallback messages, model storage separate from project cleanup.
 - Transcript dependencies invalidate downstream checkpoints; render plans have identity checks before reusing outputs.
+- New Project accepts optional pasted plain text or SRT/VTT cues. Timestamped cue boundaries are retained and token timings are estimated within each cue; plain text is distributed across the video duration. Pasted text is held in the private project workspace, not SQLite, and expires under the normal project cleanup rule. Leaving the field blank uses Whisper as before.
+- README now distinguishes the locally installed v0.2.0 build from the latest published v0.1.1 installer and explains paste timing/privacy behavior.
 
 ## Verified on this Windows machine
 
 - All 36 automated tests and TypeScript checks pass.
 - Desktop bridge, home, import and transcription settings smoke checks.
 - Packaged v0.2.0 startup self-test and actual MiniLM inference using the packaged Python/runtime: two 384-dimensional embeddings.
-- Windows Setup EXE built (873,710,473 bytes). Turbo weights are not inside it.
+- Windows Setup EXE built (873,714,549 bytes). Turbo weights are not inside it.
 - Setup installed successfully (exit 0); installed binary and uninstall registration report 0.2.0. Desktop shortcut replaced with the installed executable and correct icon. Start menu entry remains available.
 - Native Windows UI check: installed home screen opens, local engine is Ready, Standard is selected, Turbo download controls are present, and credential-presence indicators remain intact. No keys were displayed or changed.
 - Closing and reopening the installed app succeeds. Its `app.asar` SHA-256 matches the tested unpacked build. Git-history API-key pattern scan returned no matches.

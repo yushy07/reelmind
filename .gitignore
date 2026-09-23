@@ -32,6 +32,10 @@ secrets.json
 *.mp3
 *.m4a
 *.srt
+*.vtt
+*.transcript.txt
+pasted-transcript.txt
+transcript.txt
 *.ass
 *.exe
 *.msi

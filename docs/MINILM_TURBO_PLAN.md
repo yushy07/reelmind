@@ -1,6 +1,8 @@
 # REELMIND: MiniLM and optional Whisper Turbo
 
-Implementation plan · 23 September 2026 · upgrade implementation has not started.
+Original implementation plan · 23 September 2026.
+
+> **Status:** The MiniLM and optional Whisper Turbo work is implemented in the v0.2.0 source and local Windows installer. Publication is still gated on the remaining real-language evaluation listed in [MODEL_UPGRADE_VALIDATION.md](MODEL_UPGRADE_VALIDATION.md). The current public installer remains v0.1.1. This document preserves the original scope and acceptance plan; consult the validation report for current evidence.
 
 ## 1. Current build audit
 

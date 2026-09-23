@@ -8,6 +8,8 @@
 
 > **Current release:** v0.1.1 is an early personal-use prerelease. The installer is unsigned. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
 
+> **Source status:** the current repository also contains the v0.2.0 work-in-progress, including optional Whisper Turbo and pasted-transcript input. The v0.2.0 installer has been built for local use, but has not been published as a GitHub release. The download link below intentionally remains on v0.1.1 until release checks are complete.
+
 **Moving to another Windows PC?** Download the **Setup EXE under Releases**, run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
 
 ## Inside the app
@@ -26,6 +28,7 @@ Screenshots are from the desktop app. The Settings image contains no API keys.
 
 - **MiniLM** compares the actual transcript of up to 96 candidate moments before choosing at most 12 distinct clips. It runs offline with the bundled quantized model. If inference fails, text-based deduplication takes over.
 - **Standard / Whisper small** remains the default. In Settings, optionally download **Whisper turbo** (about 1.62 GB plus 512 MB free-space margin), then select Higher accuracy and save settings. Turbo runs on CPU INT8 initially, so no additional NVIDIA libraries are needed.
+- **Optional pasted transcript:** On New Project, paste plain text or timestamped SRT/VTT instead of relying on speech recognition. SRT/VTT cue times are retained; word timings are estimated within each cue. Plain text is spread across the video duration, so use timestamped cues when timing matters. Leave the box empty to use local Whisper.
 - Turbo downloads are checksum-verified, can be paused/resumed, and become available offline only after verification. A failed Turbo worker retries with small. Each project keeps its chosen mode when resumed.
 - Installed models are separate from 24-hour project cleanup. Abandoned partial downloads expire after 24 hours; completed models do not. No model weights, test media or credentials are committed to Git.
 - This is not a promise that Turbo improves every recording: multilingual accuracy and timing still depend on the source.
@@ -42,9 +45,9 @@ See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed c
 
 ## Install and use
 
-1. Download and run **`REELMIND Setup 0.1.1.exe`** from the [v0.1.1 release](https://github.com/yushy07/reelmind/releases/tag/v0.1.1).
+1. Download and run **`REELMIND Setup 0.1.1.exe`** from the [v0.1.1 release](https://github.com/yushy07/reelmind/releases/tag/v0.1.1). This is the latest public installer; it does not yet include the v0.2.0 updates described above.
 2. Open **REELMIND** from the desktop shortcut or Windows Start menu.
-3. Choose **New project**, then a local MP4, MOV, MKV, AVI, or WebM file, or a public YouTube/direct-video HTTPS link. Select **Generate Reels**.
+3. Choose **New project**, then a local MP4, MOV, MKV, AVI, or WebM file, or a public YouTube/direct-video HTTPS link. Optionally paste a transcript in the same screen: plain text or timestamped SRT/VTT. Select **Generate Reels**.
 4. When processing finishes, open **Your Reels** and choose **Save Reels**. Select a folder outside the app's installation and data folders. REELMIND verifies each saved file before removing its internal copy.
 
 The app accepts public, non-live, non-DRM links; it does not bypass authentication, paywalls, or site restrictions. Your original local video is never modified.
@@ -55,7 +58,7 @@ The app accepts public, non-live, non-DRM links; it does not bypass authenticati
 flowchart LR
     A[Local file or public link] --> B[Private working copy]
     B --> C[Media check and audio extraction]
-    C --> D[Local transcription and speaker/face analysis]
+    C --> D[Local transcription or pasted transcript]
     D --> E[Whole-video moment discovery]
     E --> F[Global ranking and deduplication]
     F --> G[Edit plans and batch rendering]
@@ -65,7 +68,7 @@ flowchart LR
 ```
 
 1. **Import:** FFprobe checks the source; local files are copied into a private project workspace, while supported public links are downloaded with yt-dlp.
-2. **Understand:** FFmpeg extracts audio. faster-whisper transcribes locally with word timestamps, Silero VAD finds speech, Sherpa ONNX estimates speaker changes, and OpenCV YuNet detects faces.
+2. **Understand:** FFmpeg extracts audio. If no transcript was pasted, faster-whisper transcribes locally with word timestamps. Otherwise, REELMIND parses the pasted text and uses cue times or estimates timing from video duration. Silero VAD finds speech, Sherpa ONNX estimates speaker changes, and OpenCV YuNet detects faces.
 3. **Find moments:** Overlapping transcript sections produce candidates. Gemini is tried first, then OpenRouter, then local heuristic analysis. Candidates are ranked across the complete video and overlapping/repeated moments are removed.
 4. **Edit and render:** Versioned edit plans drive captions, framing, cuts, and zooms. FFmpeg renders in batches of up to three clips, one heavy render at a time. NVIDIA NVENC is tried when available; software H.264 is the fallback.
 5. **Save and clean up:** A Windows notification announces completion. Unsaved finished Reels remain available; non-output working data expires after 24 hours. Interrupted jobs can be resumed within their 24-hour recovery window.
@@ -100,7 +103,7 @@ flowchart TB
 
 ### Privacy and provider fallback
 
-The local media pipeline keeps the video and extracted audio on your computer. If optional cloud analysis is enabled, only transcript text, timestamps, and structured metadata are sent to the selected provider. Gemini and OpenRouter keys are stored in **Windows Credential Manager**, not the repository or SQLite. You can use the app with no keys; local analysis takes over if a provider is unavailable or returns invalid output.
+The local media pipeline keeps the video and extracted audio on your computer. A pasted transcript is stored temporarily in that project's private workspace and is not uploaded as a file. If optional cloud analysis is enabled, transcript text (including pasted text), timestamps, and structured metadata are sent to the selected provider for clip analysis. Gemini and OpenRouter keys are stored in **Windows Credential Manager**, not the repository or SQLite. You can use the app with no keys; local analysis takes over if a provider is unavailable or returns invalid output.
 
 The Settings screen accepts only OpenRouter's `openrouter/free` route or model IDs ending in `:free`. Gemini use requires you to confirm that billing is disabled on your own API project; REELMIND cannot verify that setting for you. Free-provider quotas and availability can change.
 
@@ -109,7 +112,7 @@ The Settings screen accepts only OpenRouter's `openrouter/free` route or model I
 | Data | What happens |
 | --- | --- |
 | Original local video | Never edited or automatically deleted |
-| Copied/downloaded source, audio, transcript, plans, cache | Stored in a private project workspace; removed 24 hours after completion or interruption |
+| Copied/downloaded source, audio, generated or pasted transcript, plans, cache | Stored in a private project workspace; removed 24 hours after completion or interruption |
 | Interrupted project | Shows a recovery countdown; resume reuses verified completed stages where possible |
 | Unsaved finished Reels | Kept in managed app storage until you save or explicitly delete them |
 | Externally saved Reels | Verified before the internal copy is removed; never targeted by automatic cleanup |
@@ -137,7 +140,7 @@ For checks, use `npm test`, `npm run typecheck`, `npm run check:secrets`, and `n
 
 Real multilingual and multi-speaker podcast evaluation is still needed. Speech recognition and active-speaker framing can be wrong around overlapping voices, very short turns, rapid language switching, or scene cuts. Local heuristic ranking is less capable than a strong cloud model; neither mode guarantees a great editorial choice. Public-link support depends on third-party sites and may need tool updates. V1 has no manual caption correction after rendering.
 
-The [MiniLM and optional Whisper Turbo upgrade plan](docs/MINILM_TURBO_PLAN.md) covers semantic deduplication, verified model downloads, per-job transcription choices, and release acceptance checks. These model upgrades are planned, not included in v0.1.1.
+The [MiniLM and optional Whisper Turbo plan](docs/MINILM_TURBO_PLAN.md) records the implementation scope; the [validation report](docs/MODEL_UPGRADE_VALIDATION.md) tracks completed checks and remaining release gates. These upgrades and pasted-transcript input are present in the v0.2.0 source/local build, but are not included in the currently published v0.1.1 installer.
 
 ## License, credits, and safety
 
