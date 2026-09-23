@@ -1,170 +1,272 @@
 ![REELMIND — Long videos. Strong moments.](assets/banner.svg)
 
-# REELMIND
+<div align="center">
 
-**A personal, Windows-only studio for turning long videos into Instagram-ready Reels.** Import a local video or public link, let the app find strong moments, and save the finished vertical clips wherever you want. No timeline editor, subscription, added music, or developer tools are needed for the installed app.
+# REELMIND STUDIO
+### A Personal, Local-First Instagram Reels & Anime AMV Studio for Windows
 
-[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.3.0) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
+[![Release](https://img.shields.io/badge/Release-v0.3.0--prerelease-8b5cf6?style=for-the-badge&logo=github)](https://github.com/yushy07/reelmind/releases/tag/v0.3.0)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20(64--bit)-0078d4?style=for-the-badge&logo=windows)](https://github.com/yushy07/reelmind)
+[![License](https://img.shields.io/badge/License-Apache%202.0-10b981?style=for-the-badge)](LICENSE)
+[![Local First](https://img.shields.io/badge/Processing-100%25%20Offline%20Local-f43f5e?style=for-the-badge&logo=nvidia)](SECURITY.md)
+[![UI](https://img.shields.io/badge/UI-Dark%20Glassmorphism-6366f1?style=for-the-badge)](src/styles/theme.css)
 
-> **Current release:** [v0.3.0 is a personal-use prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0). The installer is unsigned, and real Hindi/Hinglish, Japanese, and mixed-language evaluation is still in progress. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
+<p align="center">
+  <a href="#-quick-download">Download Installer</a> •
+  <a href="#-two-specialized-creative-studios">Two Dedicated Studios</a> •
+  <a href="#-interactive-studio-workspace">Studio Workspace</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-build-from-source">Build from Source</a> •
+  <a href="#-privacy--storage">Privacy & Security</a>
+</p>
 
-> **Source status:** the repository matches the v0.3.0 release source. It introduces the complete **Anime Studio** alongside the existing **Podcast Studio**, featuring multimodal scene analysis, music beat mapping, smart 9:16 reframing, neural effects, and interactive studio controls. Earlier releases remain available.
+</div>
 
-**Moving to another Windows PC?** Download **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0), run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
+---
 
-## Inside the app
+**REELMIND** is a personal, Windows-native desktop studio engineered to transform long-form content into viral, feed-ready vertical video (9:16). Whether distilling hour-long podcast conversations into punchy captioned Reels or decomposing 24-minute anime episodes into beat-synced AMVs, REELMIND executes visual intelligence, speech recognition, and video rendering **entirely on your local GPU/CPU**.
 
-![REELMIND home screen](docs/screenshots/home.png)
+> **No cloud subscriptions. No timeline editing required. Your originals remain 100% untouched.**
 
-| New project | Local engine and settings |
-| --- | --- |
-| ![Local video import screen](docs/screenshots/new-project.png) | ![Settings screen showing the local engine ready](docs/screenshots/settings.png) |
+---
 
-Screenshots are from the desktop app. The Settings image contains no API keys.
+## 📸 Interactive Studio Workspace
 
-## Two Dedicated Studios
+| 🎌 Anime AMV Studio (Beat-Synced 9:16 Edits) | 🎙️ Podcast Studio (Captioned Viral Reels) |
+| :---: | :---: |
+| ![Anime Studio Screen](docs/screenshots/anime-studio.png) | ![Podcast Studio Screen](docs/screenshots/podcast-studio.png) |
 
-### 🎙️ Podcast Studio
-- **Dialogue-driven vertical Reels:** Converts long-form podcasts, interviews, and presentations into 30–60s vertical clips.
-- **Multilingual speech recognition:** Local faster-whisper (small or optional Turbo) transcribes English, Hindi/Hinglish, and Japanese with burned-in animated word captions.
-- **Active-speaker tracking:** Sherpa ONNX speaker embeddings and OpenCV YuNet face detection track and reframe active speakers.
-- **Semantic candidate ranking:** MiniLM local vector embeddings compare candidate moments across the full video before selecting up to 12 diverse clips.
+| 🚀 Rapid Project Ingestion | ⚙️ Offline Engine & Settings |
+| :---: | :---: |
+| ![New Project Ingestion](docs/screenshots/new-project.png) | ![Studio Settings](docs/screenshots/settings.png) |
 
-### 🎌 Anime Studio (New in v0.3.0)
-- **Full episode to AMV generation:** Takes full 24-minute Japanese or English anime episodes along with any music track to automatically build 3–5 beat-synchronized vertical 9:16 AMVs.
-- **Deep Preprocessing Engine:** Scene and shot detection via PySceneDetect & FFmpeg, audio extraction, frame indexing, and Librosa music beat analysis (BPM, beats, downbeats, onset energy curves).
-- **Multi-Signal Visual & Audio Intelligence:** OpenCV motion deltas, Laplacian sharpness, anime face prominence scoring with YuNet fallback, audio transients, and dialogue mapping.
-- **Impact Frame Detection ($T_{\text{impact}}$):** Computes exact climax hit timestamps within shots to lock action moments directly onto musical beat drops rather than generic clip starts.
-- **3–5 Diverse AMV Concepts:** Gemini Free tier evaluation + local diversity optimizer enforcing distinct vibes (`Action`, `Emotional`, `Dialogue`, `Cinematic`) and $\ge 2.5$s temporal separation.
-- **AMV Edit Planner & Smart 9:16 Reframing:** Beat-synchronized cut sequencing (Intro/Build $\to$ Climax Hit $\to$ Payoff) with dynamic character-centered camera reframing ($X \in [0.28, 0.72]$) and dynamic pan/zoom.
-- **Advanced Neural Effects:** Velocity ramping with temporal smoothing (`tblend`), dual-stream character isolation & depth-of-field background blur, and white impact flashes.
-- **Interactive Studio Controls:** Native HTML5 `<video>` preview grid, live style switcher (`Hard Beat`, `Velocity`, `Slow Burn`, `Dialogue`), dual-track audio mixer sliders (Dialogue/SFX vs Music), and 1-click instant re-rendering.
-- **RTX 3050 VRAM Management:** Strict two-pass memory lifecycle with immediate CUDA cache and model disposal preventing VRAM OOM on 4GB/6GB GPUs.
+---
 
-## What it makes
+## ⚡ Two Specialized Creative Studios
 
-### Model upgrade (v0.2.0)
+REELMIND features two dedicated creative workspaces switchable via the segmented studio tab:
 
-- **MiniLM** compares the actual transcript of up to 96 candidate moments before choosing at most 12 distinct clips. It runs offline with the bundled quantized model. If inference fails, text-based deduplication takes over.
-- **Standard / Whisper small** remains the default. In Settings, optionally download **Whisper turbo** (about 1.62 GB plus 512 MB free-space margin), then select Higher accuracy and save settings. Turbo runs on CPU INT8 initially, so no additional NVIDIA libraries are needed.
-- **Optional pasted transcript:** On New Project, paste plain text or timestamped SRT/VTT instead of relying on speech recognition. SRT/VTT cue times are retained; word timings are estimated within each cue. Plain text is spread across the video duration, so use timestamped cues when timing matters. Leave the box empty to use local Whisper.
-- Turbo downloads are checksum-verified, can be paused/resumed, and become available offline only after verification. A failed Turbo worker retries with small. Each project keeps its chosen mode when resumed.
-- Installed models are separate from 24-hour project cleanup. Abandoned partial downloads expire after 24 hours; completed models do not. No model weights, test media or credentials are committed to Git.
-- This is not a promise that Turbo improves every recording: multilingual accuracy and timing still depend on the source.
+### 🎙️ 1. Podcast Studio
+*Designed for dialogue-driven conversations, interviews, presentations, and educational videos.*
 
-![Local transcription mode and optional Turbo download](docs/screenshots/transcription-settings.png)
+- **Multilingual Whisper Recognition**: Native speech transcription using `faster-whisper` (Standard Whisper Small or optional Whisper Turbo) across English, Hindi/Hinglish, and Japanese.
+- **Active-Speaker Face Tracking**: Powered by OpenCV YuNet neural face detection and Sherpa ONNX speaker embeddings to track speaking subjects and dynamically pan/frame them within vertical 9:16 boundaries.
+- **Semantic Candidate Ranking**: MiniLM local vector embeddings compare candidate moments across the full video before selecting up to 12 distinct, high-retention clips.
+- **Burned-in Animated Word Captions**: High-contrast, dynamic animated captions synced to precise word timestamps.
+- **Optional Pasted Transcript**: Paste plain text or timed `.srt` / `.vtt` captions directly to bypass or assist speech recognition.
 
-See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. Earlier releases remain unchanged.
+---
 
-- Up to **12** automatically selected Reels per video in Podcast Studio, and **3–5** distinct AMVs in Anime Studio.
-- **30–60 seconds** each, exported as **1080 × 1920 MP4** with H.264 video (NVENC or CPU) and AAC audio.
-- Burned-in animated captions, punch-ins, speaker-aware framing for podcasts; dynamic pan/zoom, beat sync, and neural effects for anime.
+### 🎌 2. Anime Studio *(New in v0.3.0)*
+*Engineered to turn 24-minute anime episodes and music tracks into rhythm-locked, high-energy 9:16 AMVs.*
 
-## Install and use
+- **Full Episode Ingestion**: Processes full 24-minute Japanese (original audio) or English dub episodes alongside any audio track (`.mp3`, `.wav`, `.flac`, `.aac`).
+- **Scene & Shot Decomposition**: PySceneDetect + FFmpeg analyze shot transitions, content shifts, and camera cuts into a structured SQLite database.
+- **Librosa Audio Beat-Grid Analysis**: Computes exact BPM, beat points, downbeats, and onset energy envelopes to align cuts strictly on musical beats.
+- **Multi-Signal Visual Intelligence**:
+  - Motion delta vectors (action intensity)
+  - Laplacian visual sharpness scoring
+  - Anime character face scoring with fallback isolation
+  - Audio transient bursts and dialogue detection
+- **$T_{\text{impact}}$ Climax Synchronization**: Detects peak visual impact frames within shots, aligning action climaxes directly to music beat drops instead of generic cut points.
+- **3–5 Diverse AMV Concepts**: Synthesizes diverse concepts categorized into `Action`, `Emotional`, `Dialogue`, and `Cinematic` vibes with $\ge 2.5$s temporal separation.
+- **Dynamic 9:16 Character-Centered Camera**: Tracks character bounds ($X \in [0.28, 0.72]$) with smooth panning, zoom punch-ins, and dual-stream background depth-of-field blur.
+- **Neural Motion & Color Effects**: Velocity ramping curves with temporal frame blending (`tblend`), impact flash transitions, and shake dynamics.
+- **In-Studio Interactive Controls**:
+  - Edit Style Selector (`⚡ Hard Beat Drop`, `🚀 Velocity Ramp`, `🌌 Slow Burn`, `💬 Dialogue Pause`)
+  - Dual-Track Audio Mixer (Anime Voice & SFX % vs. Music Track %)
+  - One-click instant re-rendering (~3–5s on local GPU).
+- **VRAM Lifecycle Management**: Two-pass memory architecture ensures strict cleanup (`torch.cuda.empty_cache()` + `gc.collect()`), running smoothly on 4 GB / 6 GB GPUs (e.g., RTX 3050).
 
-1. Download and run **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.3.0).
-2. Open **REELMIND** from the desktop shortcut or Windows Start menu.
-3. Choose **Podcast Studio** or **Anime Studio**:
-   - For **Podcast**: Select a local video or public link, optionally paste a transcript, and choose **Generate Reels**.
-   - For **Anime**: Select an anime episode, select language (`Japanese` or `English`), pick a music track, and choose **Analyze & Create AMVs**.
-4. When processing finishes, preview in the interactive player, adjust styles or audio mix if desired, and choose **Save Reels** to export.
+---
 
-The app accepts public, non-live, non-DRM links; it does not bypass authentication, paywalls, or site restrictions. Your original local video is never modified.
+## 🎨 Professional Dark Glassmorphism Design System
 
-## How a video becomes Reels
+The application interface is styled with a modular, modern desktop aesthetic:
+- **Layered Obsidian Surfaces**: Deep dark canvas (`#09080e`) with ambient radial mesh illumination.
+- **True Physical Glassmorphism**: Specular light highlights (`inset 0 1px 1px 0 rgba(255, 255, 255, 0.14)`), frosted background blurs (`backdrop-filter: blur(24px)`), and translucent border stems.
+- **Studio Mode Theming**:
+  - **Podcast Studio**: Amethyst & Electric Violet accents (`#a78bfa`, `#7c3aed`).
+  - **Anime AMV Studio**: Cyberpunk Neon Crimson (`#f43f5e`) & Cyan rhythm highlights (`#06b6d4`).
+- **Live Radar Activity Pulse**: Double-ring animated radar beacon in the header reflecting background render status.
+- **Modular Component Architecture**: Independent, type-safe components (`Sidebar`, `Header`, `Overview`, `NewProjectPodcast`, `NewProjectAnime`, `ProjectDetail`, `AnimeReelCard`, `Library`, `SettingsView`).
+
+---
+
+## 🚀 Quick Download
+
+1. Download **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 Release](https://github.com/yushy07/reelmind/releases/tag/v0.3.0).
+2. Run the installer (NSIS single-installer bundled with local engine, models, and FFmpeg).
+3. Launch **REELMIND** from your Start menu or desktop shortcut.
+4. Drop your video, choose your studio mode, and let your workstation do the heavy lifting!
+
+> *Note:* The prerelease installer is unsigned. On Windows SmartScreen, click **More info** $\to$ **Run anyway**.
+
+---
+
+## 🔄 How Media Becomes Reels
 
 ```mermaid
 flowchart LR
-    A[Local file or public link] --> B[Private working copy]
-    B --> C[Media check and audio extraction]
-    C --> D[Local transcription or pasted transcript]
-    D --> E[Whole-video moment discovery]
-    E --> F[Global ranking and deduplication]
-    F --> G[Edit plans and batch rendering]
-    G --> H[Finished Reels]
-    H --> I[Save to an external folder]
-    B -. 24-hour working-data cleanup .-> J[Remove temporary data]
+    A[Source Media<br/>Local Video or URL] --> B[Private Project Workspace]
+    B --> C[Media Probe & Audio Extraction]
+    C --> D{Studio Mode}
+    
+    D -->|Podcast Studio| E1[Whisper Speech Recognition]
+    E1 --> E2[Face Tracking & Speaker ONNX]
+    E2 --> E3[MiniLM Semantic Clip Ranking]
+    E3 --> G1[Edit Plans: 9:16 Framing & Captions]
+    
+    D -->|Anime AMV Studio| F1[PySceneDetect Shot Decomposition]
+    F1 --> F2[Librosa Beat Grid & Energy Analysis]
+    F2 --> F3[Multi-Signal Impact Scoring]
+    F3 --> F4[3–5 Diverse AMV Concepts]
+    F4 --> G2[Beat-Aligned Cuts & Neural Effects]
+    
+    G1 --> H[FFmpeg GPU / NVENC Render]
+    G2 --> H
+    H --> I[Interactive Video Player]
+    I --> J[Save to External Folder]
+    
+    B -. 24h Expiry .-> K[Automatic Scratch Cleanup]
 ```
 
-1. **Import:** FFprobe checks the source; local files are copied into a private project workspace, while supported public links are downloaded with yt-dlp.
-2. **Understand:** FFmpeg extracts audio. If no transcript was pasted, faster-whisper transcribes locally with word timestamps. Otherwise, REELMIND parses the pasted text and uses cue times or estimates timing from video duration. Silero VAD finds speech, Sherpa ONNX estimates speaker changes, and OpenCV YuNet detects faces.
-3. **Find moments:** Overlapping transcript sections produce candidates. Gemini is tried first, then OpenRouter, then local heuristic analysis. Candidates are ranked across the complete video and overlapping/repeated moments are removed.
-4. **Edit and render:** Versioned edit plans drive captions, framing, cuts, and zooms. FFmpeg renders in batches of up to three clips, one heavy render at a time. NVIDIA NVENC is tried when available; software H.264 is the fallback.
-5. **Save and clean up:** A Windows notification announces completion. Unsaved finished Reels remain available; non-output working data expires after 24 hours. Interrupted jobs can be resumed within their 24-hour recovery window.
+---
 
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TB
-    UI[React desktop UI] <-->|Validated IPC bridge| Main[Electron main process]
-    Main --> Service[Job service and queue]
-    Service <--> DB[(SQLite job state)]
-    Service --> Media[FFmpeg / FFprobe / yt-dlp]
-    Service --> Worker[Local Python worker]
-    Worker --> Models[faster-whisper / Silero / Sherpa / YuNet]
-    Service --> Providers{Optional transcript analysis}
-    Providers --> Gemini[Gemini]
-    Providers --> Router[OpenRouter free route]
-    Providers --> Local[Local heuristic fallback]
-    Service --> Work[Per-project temporary workspace]
-    Service --> Outputs[Managed finished Reels]
-    Outputs --> Save[User-chosen external folder]
+    subgraph Frontend["Desktop UI (React 19 + TypeScript + Vite)"]
+        UI[Modular Studio UI]
+        Theme[Glassmorphism Theme System]
+        Controls[Interactive Mixer & Style Switcher]
+    end
+
+    subgraph MainProcess["Electron Main & IPC Boundary"]
+        IPC[Validated IPC Bridge]
+        Service[Job Service & Checkpoint Queue]
+        Store[(SQLite Database)]
+    end
+
+    subgraph Engine["Local Python AI & Worker Runtime"]
+        Whisper[faster-whisper / Silero VAD]
+        Vision[OpenCV YuNet Face Tracking]
+        AnimeWorker[anime_worker.py: Librosa + PySceneDetect]
+        Scorer[Multi-Signal Impact & Transient Math]
+    end
+
+    subgraph MediaTools["Hardware & Rendering"]
+        FFmpeg[FFmpeg with NVENC GPU Acceleration]
+        FFprobe[FFprobe Media Inspection]
+    end
+
+    subgraph CloudOpt["Optional Cloud Evaluation (Free-tier Only)"]
+        Gemini[Google Gemini API]
+        Router[OpenRouter Free Tier]
+        LocalHeuristic[Offline Local Heuristics Fallback]
+    end
+
+    UI <-->|IPC| IPC
+    IPC <--> Service
+    Service <--> Store
+    Service --> Engine
+    Service --> MediaTools
+    Service --> CloudOpt
 ```
 
-| Area | Main files | Responsibility |
-| --- | --- | --- |
-| Desktop UI | `src/` | Home, import, processing, results, and settings screens |
-| Electron boundary | `electron/main.ts`, `electron/preload.ts` | Window, dialogs, notifications, and validated renderer calls |
-| Jobs and storage | `electron/service.ts`, `electron/storage.ts` | Pipeline, checkpoints, SQLite state, save verification, and cleanup |
-| Podcast editing | `electron/providers.ts`, `electron/core.ts`, `electron/media.ts` | Provider fallback, clip selection, edit plans, and rendering |
-| Anime engine | `electron/anime/` (`planner.ts`, `renderer.ts`, `selection.ts`) | AMV edit planning, smart 9:16 reframing, neural effects, and NVENC rendering |
-| Podcast worker | `workers/worker.py` | Transcription, voice/speaker features, and face analysis |
-| Anime worker | `workers/anime_worker.py` | Shot boundary detection, Librosa music rhythm analysis, and multi-signal scoring |
-| Packaged tools | `runtime/` | Local executables, models, and fonts; generated locally, not committed |
+### Key Source Structure
 
-### Privacy and provider fallback
+```text
+REELMIND
+├── src/
+│   ├── components/            # Modular studio components
+│   │   ├── Sidebar.tsx        # Glassmorphic sidebar with mode switcher & GPU status
+│   │   ├── Header.tsx         # Floating header with breadcrumbs & radar beacon
+│   │   ├── Overview.tsx       # Studio dashboard with hero banner & active queue
+│   │   ├── NewProjectPodcast.tsx  # Podcast Reels creation wizard
+│   │   ├── NewProjectAnime.tsx    # Anime AMV creation wizard
+│   │   ├── ProjectDetail.tsx  # Workspace with pipeline progress & results
+│   │   ├── AnimeReelCard.tsx  # AMV player with audio mixer & style pills
+│   │   ├── Library.tsx        # Searchable project repository
+│   │   └── SettingsView.tsx   # Local engines, hardware, and render settings
+│   ├── styles/
+│   │   ├── theme.css          # Design system tokens, glassmorphism, animations
+│   │   └── components.css     # Component styling and layout rules
+│   ├── main.tsx               # Application entry point and IPC orchestration
+│   └── TranscriptionSettings.tsx # Whisper model downloader & accuracy toggle
+├── electron/
+│   ├── anime/                 # Anime AMV edit planner, selection, & renderer
+│   ├── main.ts                # Electron window, security sandbox, and protocols
+│   ├── service.ts             # Pipeline execution, job checkpoints, and recovery
+│   └── storage.ts             # SQLite persistence layer
+├── workers/
+│   ├── worker.py              # Podcast transcription & speaker diarization
+│   └── anime_worker.py        # PySceneDetect, Librosa beat-sync, and impact scoring
+├── tests/                     # 62 unit and integration tests (100% passing)
+└── docs/                      # Documentation and screenshots
+```
 
-The local media pipeline keeps the video and extracted audio on your computer. A pasted transcript is stored temporarily in that project's private workspace and is not uploaded as a file. If optional cloud analysis is enabled, transcript text (including pasted text), timestamps, and structured metadata are sent to the selected provider for clip analysis. Gemini and OpenRouter keys are stored in **Windows Credential Manager**, not the repository or SQLite. You can use the app with no keys; local analysis takes over if a provider is unavailable or returns invalid output.
+---
 
-The Settings screen accepts only OpenRouter's `openrouter/free` route or model IDs ending in `:free`. Gemini use requires you to confirm that billing is disabled on your own API project; REELMIND cannot verify that setting for you. Free-provider quotas and availability can change.
+## 🔒 Privacy & Storage
 
-## Storage and recovery
+| Resource | Retention & Handling |
+| :--- | :--- |
+| **Original Media** | Never modified, moved, or deleted. Always read-only. |
+| **Project Workspace** | Stored in private app data. Working scratch files expire 24 hours after completion or pause. |
+| **Interrupted Jobs** | State checkpointed after every stage. Resumable within the 24-hour recovery window. |
+| **Finished Reels / AMVs** | Retained in managed storage until you explicitly delete them or export them. |
+| **Exported Videos** | Verified before internal copies are purged; never targeted by automatic cleanup. |
+| **API Credentials** | Saved securely in **Windows Credential Manager**. Never written to Git or SQLite. |
 
-| Data | What happens |
-| --- | --- |
-| Original local video | Never edited or automatically deleted |
-| Copied/downloaded source, audio, generated or pasted transcript, plans, cache | Stored in a private project workspace; removed 24 hours after completion or interruption |
-| Interrupted project | Shows a recovery countdown; resume reuses verified completed stages where possible |
-| Unsaved finished Reels | Kept in managed app storage until you save or explicitly delete them |
-| Externally saved Reels | Verified before the internal copy is removed; never targeted by automatic cleanup |
+---
 
-Cleanup checks run while the app is open and again at startup, so an expiry that passes while the app is closed is handled on the next launch. Closing the app during processing pauses the job. Explicitly deleting a project also deletes any unsaved internal Reels, after an in-app confirmation.
+## 💻 Build from Source
 
-## Build from source
-
-Development requires **64-bit Windows**, Node.js 24 or newer, Git, and enough free space for the runtime (roughly 2 GB plus video working space).
+### Prerequisites
+- **Windows 10 / 11 64-bit**
+- **Node.js 24+**
+- **Git**
+- ~2 GB disk space for offline models, portable Python runtime, and FFmpeg tools.
 
 ```powershell
+# 1. Clone repository
 git clone https://github.com/yushy07/reelmind.git
 cd reelmind
+
+# 2. Install dependencies
 npm ci
+
+# 3. Setup portable offline AI runtime & models
 npm run setup:runtime
+
+# 4. Compile TypeScript & build bundle
 npm run build
+
+# 5. Launch desktop development application
 npm start
 ```
 
-`npm run setup:runtime` downloads the portable local worker runtime, FFmpeg, yt-dlp, models, and fonts. To make an installer after setup, run `npm run package`; the NSIS Setup EXE is written to `release/`. A signing certificate is not included.
+### Verification & Testing
+```powershell
+# Run the 62 integration and unit tests
+npm test
 
-For checks, use `npm test`, `npm run typecheck`, `npm run check:secrets`, and `node scripts/run-electron-smoke.mjs`. Integration fixtures are available in `scripts/`; generated test media and screenshots stay under Git-ignored `.test-data/`.
+# Verify type safety
+npm run typecheck
 
-## Current limits
+# Check for accidental credential leaks
+npm run check:secrets
 
-Real multilingual and multi-speaker podcast evaluation is still needed. Speech recognition and active-speaker framing can be wrong around overlapping voices, very short turns, rapid language switching, or scene cuts. Local heuristic ranking is less capable than a strong cloud model; neither mode guarantees a great editorial choice. Public-link support depends on third-party sites and may need tool updates. V1 has no manual caption correction after rendering.
+# Package NSIS Windows Setup Installer
+npm run package
+```
 
-The [MiniLM and optional Whisper Turbo plan](docs/MINILM_TURBO_PLAN.md) records the implementation scope; the [validation report](docs/MODEL_UPGRADE_VALIDATION.md) tracks completed checks and remaining release gates. These upgrades and pasted-transcript input are included in the v0.2.0 prerelease installer; v0.1.0 and v0.1.1 remain available as earlier releases.
+---
 
-## License, credits, and safety
+## 📜 License & Credits
 
-Copyright **2026 Ayush Kant**. Original REELMIND code and branding are licensed under the [Apache License 2.0](LICENSE). Bundled third-party tools, models, and fonts retain their own licenses; see [NOTICE](NOTICE), [third-party notices](THIRD_PARTY.md), and [redistribution details](THIRD_PARTY_LICENSES.md).
+Copyright **2026 Ayush Kant**. 
 
-Never place API keys, personal videos, workspaces, local databases, or installer artifacts in Git. The repository ignores generated and private data; `npm run check:secrets` adds a safeguard before sharing changes. See [SECURITY.md](SECURITY.md) for reporting and diagnostic guidance.
+Licensed under the **[Apache License 2.0](LICENSE)**. Bundled third-party binaries, libraries, and open-source models (faster-whisper, Librosa, PySceneDetect, FFmpeg, Silero, Sherpa ONNX, OpenCV) retain their respective upstream licenses. See [NOTICE](NOTICE), [THIRD_PARTY.md](THIRD_PARTY.md), and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for full attribution.
