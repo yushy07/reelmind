@@ -1,270 +1,238 @@
-import React,{ useEffect,useState } from 'react';
-import {createRoot} from 'react-dom/client';
-import {Sparkles,Plus,House,Clapperboard,Settings2,ArrowUpRight,ArrowRight,Upload,Link2,Check,ChevronRight,Film,FolderDown,Play,Pause,RotateCcw,Trash2,HardDrive,Languages,Monitor,ShieldCheck,Cpu,LoaderCircle,AlertCircle,X,Scissors,AudioLines,ScanFace,CheckCircle2,Download,Mic,Music} from 'lucide-react';
-import type {API,Status,Job,Settings,Provider,CreateInput,AnimeCreateInput,AnimeEditStyle,AnimeRerenderOptions} from '../shared/types';
-import './styles.css';
-import './updates.css';
-import {TranscriptionSettings} from './TranscriptionSettings';
-declare global {interface Window{reelmind?:API}}
-const api=window.reelmind;
-const podcastStages=['importing','transcribing','framing','analyzing','rendering','completed'];
-const animeStages=['importing','scenes','music','transcribing','analyzing','rendering','completed'];
-const labels:Record<string,string>={queued:'Queued',importing:'Importing',scenes:'Detecting shots',music:'Mapping music',transcribing:'Transcribing',framing:'Finding speakers',analyzing:'Finding moments',rendering:'Rendering',completed:'Ready',paused:'Paused',failed:'Needs attention',expired:'Expired'};
-const duration=(seconds:number)=>{const total=Math.round(Math.max(0,seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;};
-function App(){
-  const [data,setData]=useState<Status|null>(null),[studio,setStudio]=useState<'podcast'|'anime'>('podcast'),[page,setPage]=useState<'home'|'new'|'library'|'settings'>('home'),[selected,setSelected]=useState<string|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[toast,setToast]=useState('');
-  const refresh=()=>api?.status().then(setData).catch(e=>setError(e.message));
-  useEffect(()=>{refresh();const unsubscribe=api?.subscribe(()=>refresh());const timer=setInterval(refresh,5000);return()=>{unsubscribe?.();clearInterval(timer);};},[]);
-  useEffect(()=>api?.onReady(id=>{setSelected(id);refresh();setToast('Your Reels are ready. Choose Save Reels to keep them in your own folder.');}),[]);
-  const act=async(fn:()=>Promise<unknown>)=>{setBusy(true);setError('');try{await fn();await refresh();}catch(e){setError(String(e instanceof Error?e.message:e).replace(/^Error invoking remote method '[^']+': Error: /,''));}finally{setBusy(false);}};
-  const go=(p:typeof page)=>{setPage(p);setSelected(null);setError('');};
-  const job=data?.jobs.find(j=>j.id===selected);
-  const studioJobs=data?.jobs.filter(j=>studio==='anime'?j.studio==='anime':j.studio!=='anime')||[];
-  const completed=studioJobs.filter(j=>j.stage==='completed').length;
-  const active=data?.jobs.find(j=>(j.studio==='anime'?animeStages:podcastStages).slice(0,-1).includes(j.stage));
-  return <div className="app"><aside><a className="brand" onClick={()=>go('home')}><span className="brand-icon"><img src={brandMark} width={36} height={36} alt=""/></span>reelmind<span className="brand-dot">.</span></a><div className="studio-switcher" role="tablist" aria-label="Studio mode"><button type="button" className={'studio-pill'+(studio==='podcast'?' active':'')} onClick={()=>{setStudio('podcast');go('home');}}><Mic size={14}/>Podcast</button><button type="button" className={'studio-pill'+(studio==='anime'?' active':'')} onClick={()=>{setStudio('anime');go('home');}}><Sparkles size={14}/>Anime</button></div><div className="workspace-label">{studio==='anime'?'ANIME STUDIO':'PODCAST STUDIO'} <span>V1</span></div><button className="new-button" onClick={()=>go('new')}><Plus size={18}/>New project<kbd>＋</kbd></button><div className="nav-label">STUDIO</div><nav>{[[House,'home','Overview'],[Film,'library','Your Projects'],[Settings2,'settings','Settings']].map(([Icon,id,text]:any)=><button key={id} className={page===id&&!selected?'active':''} onClick={()=>go(id)}><Icon size={19}/>{text}{id==='library'&&completed>0&&<span className="count">{completed}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="local-card"><span className="green-dot"/> Your machine. Your studio.<p>Local processing.<br/>No subscription needed.</p><span className="mini-tag">WINDOWS DESKTOP</span></div><div className="profile"><span>A</span><div>Personal studio<small>{studio==='anime'?'Anime AMV Studio':'Made for your next great Reel'}</small></div></div></div></aside><main><header><div>Workspace <ChevronRight size={13}/> <span>{job?'Project':page==='home'?'Overview':page==='new'?'New project':page==='library'?'Your Projects':'Settings'}</span></div><span className="header-status"><span className={active?'pulse-dot':'green-dot'}/>{active?'Studio is working':'Local-first studio'}</span></header>{error&&<div className="alert" role="alert"><AlertCircle size={18}/><span>{error}</span><button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{toast&&<div className="toast" role="status">{toast}<button onClick={()=>setToast('')} aria-label="Dismiss message"><X size={16}/></button></div>}
-  <div className="page">{!api?<div className="empty"><Monitor size={40}/><h2>Open REELMIND on your desktop</h2><p>This page is the app interface. Launch the desktop app to process videos.</p></div>:!data?<div className="empty"><LoaderCircle className="spin"/><p>Opening your studio…</p></div>:job?<Project job={job} busy={busy} onAction={action=>act(()=>api.action(job.id,action))} onSave={()=>act(async()=>{const dest=await api.save(job.id);if(dest)setToast('Your Reels are saved in '+dest);})} onRerender={(conceptId,opts)=>act(async()=>{if(api?.rerenderAnime)await api.rerenderAnime(job.id,conceptId,opts);setToast('AMV edit re-rendered successfully.');})} back={()=>setSelected(null)}/>:page==='new'?(studio==='anime'?<AnimeNewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{if(api.createAnime)setSelected(await api.createAnime(input));})} pickVideo={()=>api.pickVideo()} pickAudio={()=>api.pickAudio?api.pickAudio():Promise.resolve(null)}/>:<NewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{setSelected(await api.create(input));})} pick={()=>api.pickVideo()}/>):page==='settings'?<Preferences data={data} busy={busy} save={(s,k)=>act(async()=>{await api.settings(s,k);setToast('Settings saved securely.');})} setup={()=>act(()=>api.setup())}/>:<><div className="page-heading"><div><div className="eyebrow">{studio==='anime'?'ANIME STUDIO':'YOUR CREATIVE SPACE'}</div><h1>{page==='home'?(studio==='anime'?'High-energy anime.':'Long conversations.'):'Your Projects.'}{page==='home'&&<><br/><span>{studio==='anime'?'Beat-synced edits.':'Great little moments.'}</span></>}</h1><p>{page==='home'?(studio==='anime'?'Turn 24-minute episodes and music tracks into viral 9:16 edits.':'Turn the best parts of your videos into scroll-stopping Reels.'):'Finished clips, ready for their next chapter.'}</p></div><span className="edition">{studio==='anime'?'ANIME / 01':'REELMIND / 01'}</span></div>{page==='home'&&<><section className="hero"><div className="hero-copy"><span className="hero-label"><Sparkles size={14}/> {studio==='anime'?'ANIME AMV STUDIO':'YOUR PERSONAL AI EDITOR'}</span><h2>{studio==='anime'?'Anime episodes.\nPrecision cuts.':'Big ideas.\nSmall screen.'}</h2><p>{studio==='anime'?'Import an episode and music track. Detect shots and beats.\nLet Anime Studio plan the edit.':'Drop in a video. Find the moments.\nLet your studio take it from there.'}</p><button className="primary" onClick={()=>go('new')}>{studio==='anime'?'Start Anime project':'Create your first Reel'} <ArrowUpRight size={19}/></button><div className="hero-foot">{studio==='anime'?'BEAT MATCHED · IMPACT SYNCED · GPU ACCELERATED':'NO TIMELINE. NO HEAVY LIFTING.'}</div></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="source-card"><div className="video-art"><div className="person p-one"/><div className="person p-two"/><span className="play-circle"><Play size={17} fill="currentColor"/></span></div><div className="source-footer"><AudioLines size={24}/><div className="waveform">{Array.from({length:27},(_,i)=><i key={i} style={{height:8+(i*17%23)}}/>)}</div><span>01:24:08</span></div></div><div className="reel-card"><span className="reel-label"><span className="green-dot"/> THE MOMENT</span><div className="portrait-art"><div className="person p-three"/></div><div className="caption-art">ONE IDEA.<br/><em>EVERYTHING</em><br/>CHANGES.</div><div className="reel-bottom"><span>9:16</span><Sparkles size={14}/><span>00:42</span></div></div><span className="float-tag tag-one"><ScanFace size={15}/>Smart framing</span><span className="float-tag tag-two"><Check size={14}/>Captions, handled.</span><span className="art-note">ILLUSTRATED WORKFLOW</span></div></section><div className="features"><div><span className="feature-icon"><ScanFace/></span><section><h3>Find the good stuff</h3><p>Your whole video. Its strongest moments.</p></section></div><div><span className="feature-icon"><Languages/></span><section><h3>Speak your language</h3><p>English, Hindi / Hinglish & Japanese.</p></section></div><div><span className="feature-icon"><Scissors/></span><section><h3>Ready for the feed</h3><p>Vertical. Captioned. Full of energy.</p></section></div></div></>}
-  {!data.runtime.ready&&<div className="setup-banner"><Cpu size={24}/><div><strong>Let’s get your local engine ready</strong><p>A one-time download gives your studio speech recognition, face tracking and fonts.</p></div><button className="secondary" onClick={()=>go('settings')}>Set up studio <ArrowRight size={16}/></button></div>}
-  <ProjectGroups jobs={studioJobs} page={page==='home'?'home':'library'} open={setSelected} newProject={()=>go('new')}/><footer><ShieldCheck size={14}/>Originals stay untouched. Your creativity stays yours.<span>CRAFTED FOR THE MOMENT</span></footer></> }</div></main></div>;
-}
-function AnimeNewProject({ready,busy,settings,onCreate,pickVideo,pickAudio}:{ready:boolean;busy:boolean;settings:()=>void;onCreate:(input:AnimeCreateInput)=>void;pickVideo:()=>Promise<string|null>;pickAudio:()=>Promise<string|null>}){
-  const [episode,setEpisode]=useState(''),[music,setMusic]=useState(''),[lang,setLang]=useState<'ja'|'en'>('ja'),[name,setName]=useState('');
-  return <div className="narrow new-project-page">
-    <div className="eyebrow">ANIME STUDIO</div><h1>Import episode & music.</h1><p className="intro">Feed a 24-minute Japanese or English anime episode and an audio track. REELMIND will analyze shots, beats, and dialogue.</p>
-    <div className="panel import-panel">
-      <div className="form-step"><span>01</span><strong>Anime Episode</strong><small>Required</small></div>
-      <button className={'file-zone'+(episode?' has-file':'')} onClick={async()=>{const file=await pickVideo();if(file)setEpisode(file);}}><span className="upload-icon">{episode?<Check size={26}/>:<Upload size={27}/>}</span><span className="file-zone-copy"><strong>{episode?episode.split(/[\\/]/).pop():'Select anime episode from your computer'}</strong><small>{episode?'Click to choose a different episode':'24-minute MP4, MKV, MOV or WebM'}</small></span><span className="secondary">{episode?'Change video':'Browse episode'}</span></button>
-      
-      <div className="form-step"><span>02</span><strong>Music Track</strong><small>Required</small></div>
-      <button className={'file-zone'+(music?' has-file':'')} onClick={async()=>{const file=await pickAudio();if(file)setMusic(file);}}><span className="upload-icon">{music?<Check size={26}/>:<Music size={27}/>}</span><span className="file-zone-copy"><strong>{music?music.split(/[\\/]/).pop():'Select music track for rhythm mapping'}</strong><small>{music?'Click to choose a different track':'MP3, WAV, AAC, FLAC or OGG'}</small></span><span className="secondary">{music?'Change track':'Browse audio'}</span></button>
-      
-      <div className="form-step"><span>03</span><strong>Episode Dialogue Language</strong><small>Required</small></div>
-      <div className="language-selector">
-        <button type="button" className={'language-btn'+(lang==='ja'?' active':'')} onClick={()=>setLang('ja')}><Languages size={17}/>Japanese (Default)</button>
-        <button type="button" className={'language-btn'+(lang==='en'?' active':'')} onClick={()=>setLang('en')}><Languages size={17}/>English Dub</button>
-      </div>
+import React, { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Monitor, LoaderCircle, AlertCircle, X } from 'lucide-react';
+import type { API, Status, Job } from '../shared/types';
+import './styles/theme.css';
+import './styles/components.css';
 
-      <label className="project-name-field">PROJECT NAME <span>OPTIONAL</span><input maxLength={80} placeholder="e.g. Episode 04 AMV" value={name} onChange={e=>setName(e.target.value)}/><small>Leave blank to use the episode file name.</small></label>
-      
-      <div className="import-summary"><span><Film size={16}/>Shot Decomposition</span><span><Music size={16}/>Librosa Beat Grid</span><span><Languages size={16}/>Whisper ({lang==='ja'?'JA':'EN'})</span><span><span className="aspect-badge">9:16 Preset</span></span></div>
-      {!ready?<button className="primary full" onClick={settings}>Set up local engine first <ArrowRight size={17}/></button>:<button className="primary full" disabled={!episode||!music||busy} onClick={()=>onCreate({kind:'local',episodePath:episode,musicPath:music,language:lang,name:name.trim(),outputAspect:'9:16'})}>{busy?<LoaderCircle className="spin" size={18}/>:<Sparkles size={18}/>}Analyze Episode <ArrowRight size={17}/></button>}
-    </div><p className="privacy"><ShieldCheck size={15}/>Local analysis only. Original media files remain untouched.</p>
-  </div>;
-}
-function ProjectRows({jobs,open}:{jobs:Job[];open:(id:string)=>void}){
-  return <div className="project-list">{jobs.map(j=>{
-    const isAnime=j.studio==='anime';
-    const activeStages=(isAnime?animeStages:podcastStages).slice(0,-1);
-    const working=activeStages.includes(j.stage);
-    const details=[isAnime?`ANIME (${j.input.language?.toUpperCase()||'JA'})`:j.input.kind==='url'?'VIDEO LINK':'LOCAL VIDEO',new Date(j.createdAt).toLocaleDateString(),j.duration?duration(j.duration):null,isAnime?(j.outputs.length?`${j.outputs.length} AMV ${j.outputs.length===1?'Edit':'Edits'}`:j.animeAnalysis?`${j.animeAnalysis.shotCount} shots · ${j.animeAnalysis.bpm} BPM`:'Analysis DB'):j.outputs.length?`${j.outputs.length} ${j.outputs.length===1?'Reel':'Reels'} ready`:null].filter(Boolean);
-    return <button className="project-row" key={j.id} onClick={()=>open(j.id)} aria-label={`Open ${j.name||j.title}, ${labels[j.stage]}`}>
-      <span className="project-thumb">{isAnime?<Sparkles size={23}/>:<Film size={23}/>}</span>
-      <span className="project-row-content"><span className="project-row-kicker">{details.join('  ·  ')}</span><strong>{j.name||j.title}</strong><small>{working?j.message:j.stage==='completed'?(isAnime?(j.outputs.length?`${j.outputs.length} AMV Edits ready to save`:'Analysis Database ready'):j.outputs.every(r=>r.savedPath)?'Saved to your folder':'Ready to review and save'):j.stage==='paused'?'Resume before recovery expires':j.stage==='failed'?'Open to review and retry':j.title}</small>{working&&<progress className="row-progress" value={j.progress} max={100} aria-label={`${j.name||j.title} progress`}/>}</span>
-      <span className={'badge '+j.stage}>{labels[j.stage]}{working?` · ${Math.floor(j.progress)}%`:''}</span><ChevronRight className="project-row-chevron" size={18}/>
-    </button>;
-  })}</div>;
-}
-function ProjectGroups({jobs,page,open,newProject}:{jobs:Job[];page:'home'|'library';open:(id:string)=>void;newProject:()=>void}){
-  const working=jobs.filter(j=>!['completed','expired'].includes(j.stage));
-  const finished=jobs.filter(j=>['completed','expired'].includes(j.stage));
-  const list=page==='home'?finished:jobs;
-  return <>{page==='home'&&working.length>0&&<section className="projects working-projects"><div className="section-heading"><h2>In progress & recovery <span>{working.length}</span></h2></div><ProjectRows jobs={working} open={open}/></section>}<section className="projects"><div className="section-heading"><h2>{page==='home'?'Recent projects':'All projects'}<span>{list.length}</span></h2><button className="text-button" onClick={newProject}>New project <Plus size={15}/></button></div>{list.length===0&&jobs.length===0?<div className="empty-projects"><div className="empty-icon"><Clapperboard size={25}/></div><h3>Your next great project starts here</h3><p>Add your source media. We’ll take care of the rest.</p><button className="text-button" onClick={newProject}>Start a project <ArrowRight size={16}/></button></div>:list.length>0?<ProjectRows jobs={list} open={open}/>:<p className="quiet-list">Finished projects will appear here when ready.</p>}</section></>;
-}
-function NewProject({ready,busy,settings,onCreate,pick}:{ready:boolean;busy:boolean;settings:()=>void;onCreate:(input:CreateInput)=>void;pick:()=>Promise<string|null>}){
-  const [kind,setKind]=useState<'local'|'url'>('local'),[value,setValue]=useState(''),[name,setName]=useState(''),[transcript,setTranscript]=useState('');
-  return <div className="narrow new-project-page">
-    <div className="eyebrow">NEW PROJECT</div><h1>Bring your video.</h1><p className="intro">Choose a source and REELMIND will turn its strongest moments into finished Reels.</p>
-    <div className="panel import-panel">
-      <div className="form-step"><span>01</span><strong>Choose your source</strong><small>Required</small></div>
-      <div className="tabs" aria-label="Video source"><button className={kind==='local'?'active':''} aria-pressed={kind==='local'} onClick={()=>{setKind('local');setValue('');}}><Upload size={17}/>Local video</button><button className={kind==='url'?'active':''} aria-pressed={kind==='url'} onClick={()=>{setKind('url');setValue('');}}><Link2 size={17}/>Video link</button></div>
-      {kind==='local'?<button className={'file-zone'+(value?' has-file':'')} onClick={async()=>{const file=await pick();if(file)setValue(file);}}><span className="upload-icon">{value?<Check size={26}/>:<Upload size={27}/>}</span><span className="file-zone-copy"><strong>{value?value.split(/[\\/]/).pop():'Select a video from your computer'}</strong><small>{value?'Click to choose a different file':'MP4, MOV, MKV, AVI or WebM'}</small></span><span className="secondary">{value?'Change file':'Browse files'}</span></button>:<label className="link-field">PUBLIC VIDEO LINK<input type="url" placeholder="https://youtube.com/watch?v=…" value={value} onChange={e=>setValue(e.target.value)}/><small>Public YouTube and direct video links. One video at a time.</small></label>}
-      <label className="project-name-field">PROJECT NAME <span>OPTIONAL</span><input maxLength={80} placeholder="e.g. Podcast highlights" value={name} onChange={e=>setName(e.target.value)}/><small>Leave blank to use the video's title.</small></label>
-      <div className="form-step"><span>02</span><strong>Transcript</strong><small>Optional</small></div>
-      <details className="transcript-disclosure"><summary><span className="transcript-summary-icon"><Languages size={18}/></span><span className="transcript-summary-copy"><strong>Paste a transcript</strong><small>Plain text or timed SRT/VTT captions</small></span><span className={'transcript-state'+(transcript.trim()?' added':'')}>{transcript.trim()?'Added':'Optional'}</span><ChevronRight className="disclosure-chevron" size={18}/></summary><div className="transcript-paste"><label htmlFor="pasted-transcript">TRANSCRIPT TEXT</label><textarea id="pasted-transcript" rows={7} maxLength={200000} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder="Paste your transcript here"/><div className="transcript-help"><small>Timed cues keep their positions. Plain text uses estimated timing and may drift. Leave this empty to transcribe locally.</small><span>{transcript.length.toLocaleString()} / 200,000</span></div></div></details>
-      <div className="import-summary"><span><Film size={16}/>Up to 12 Reels</span><span><Monitor size={16}/>1080 × 1920</span><span><AudioLines size={16}/>30–60 seconds</span></div>
-      {!ready?<button className="primary full" onClick={settings}>Set up local engine first <ArrowRight size={17}/></button>:<button className="primary full" disabled={!value||busy} onClick={()=>onCreate({kind,value,name:name.trim(),pastedTranscript:transcript.trim()?transcript:undefined})}>{busy?<LoaderCircle className="spin" size={18}/>:<Sparkles size={18}/>}Generate Reels <ArrowRight size={17}/></button>}
-    </div><p className="privacy"><ShieldCheck size={15}/>Your original video stays untouched. Optional cloud analysis receives transcript text only.</p>
-  </div>;
-}
-function AnimeReelCard({job,reel,index,busy,onRerender}:{job:Job;reel:Job['outputs'][0];index:number;busy:boolean;onRerender:(conceptId:number,options:AnimeRerenderOptions)=>Promise<void>;}){
-  const conceptId=parseInt(reel.id,10);
-  const concept=job.animeAnalysis?.concepts?.find(c=>c.id===conceptId);
-  const [style,setStyle]=useState<AnimeEditStyle>(concept?.style||'hard_beat_drop');
-  const [sourceAudio,setSourceAudio]=useState(40);
-  const [music,setMusic]=useState(100);
-  const [localBusy,setLocalBusy]=useState(false);
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { Overview } from './components/Overview';
+import { NewProjectPodcast } from './components/NewProjectPodcast';
+import { NewProjectAnime } from './components/NewProjectAnime';
+import { ProjectDetail } from './components/ProjectDetail';
+import { Library } from './components/Library';
+import { SettingsView } from './components/SettingsView';
 
-  const handleRerender=async()=>{
-    if(localBusy||busy)return;
-    setLocalBusy(true);
-    try{
-      await onRerender(conceptId,{
-        style,
-        sourceAudioMix:sourceAudio/100,
-        musicMix:music/100
-      });
-    }finally{
-      setLocalBusy(false);
+declare global {
+  interface Window {
+    reelmind?: API;
+  }
+}
+
+const api = window.reelmind;
+const podcastStages = ['importing', 'transcribing', 'framing', 'analyzing', 'rendering', 'completed'];
+const animeStages = ['importing', 'scenes', 'music', 'transcribing', 'analyzing', 'rendering', 'completed'];
+
+function App() {
+  const [data, setData] = useState<Status | null>(null);
+  const [studio, setStudio] = useState<'podcast' | 'anime'>('podcast');
+  const [page, setPage] = useState<'home' | 'new' | 'library' | 'settings'>('home');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const refresh = () => api?.status().then(setData).catch((e) => setError(e.message));
+
+  useEffect(() => {
+    refresh();
+    const unsubscribe = api?.subscribe(() => refresh());
+    const timer = setInterval(refresh, 5000);
+    return () => {
+      unsubscribe?.();
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(
+    () =>
+      api?.onReady((id) => {
+        setSelected(id);
+        refresh();
+        setToast('Your Reels are ready. Choose Save Reels to keep them in your own folder.');
+      }),
+    []
+  );
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError('');
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      setError(
+        String(e instanceof Error ? e.message : e).replace(
+          /^Error invoking remote method '[^']+': Error: /,
+          ''
+        )
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
-  const isWorking=localBusy||busy;
+  const go = (p: typeof page) => {
+    setPage(p);
+    setSelected(null);
+    setError('');
+  };
 
-  return <article className="anime-output-card" key={reel.id}>
-    <video controls preload="metadata" key={reel.planHash||reel.id} src={`reel://output/${job.id}/${reel.id}?h=${reel.planHash||''}`} aria-label={`AMV Edit ${index+1}: ${reel.title}`}/>
-    <div className="anime-output-body">
-      <div className="anime-output-meta">
-        <span className="eyebrow">AMV {String(index+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span>
-        {concept&&<span className={'candidate-tag '+concept.category}>{concept.category.toUpperCase()}</span>}
-      </div>
-      <h3 className="anime-output-title">{reel.title}</h3>
-      {reel.reason&&<p className="anime-output-reason">{reel.reason}</p>}
-      
-      <div className="anime-studio-controls">
-        <div className="anime-control-group">
-          <div className="anime-control-header">
-            <span>Edit Style</span>
-            <strong>{style.replace(/_/g,' ')}</strong>
-          </div>
-          <div className="style-pills-row">
-            {([
-              ['hard_beat_drop','⚡ Hard Beat'],
-              ['velocity_ramp','🚀 Velocity'],
-              ['slow_burn','🌌 Slow Burn'],
-              ['dialogue_pause','💬 Dialogue']
-            ] as const).map(([val,name])=>(
-              <button
-                type="button"
-                key={val}
-                className={'style-pill-btn'+(style===val?' active':'')}
-                onClick={()=>setStyle(val)}
-                disabled={isWorking}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        </div>
+  const job = data?.jobs.find((j) => j.id === selected);
+  const studioJobs = data?.jobs.filter((j) => (studio === 'anime' ? j.studio === 'anime' : j.studio !== 'anime')) || [];
+  const completed = studioJobs.filter((j) => j.stage === 'completed').length;
+  const activeJob = data?.jobs.find((j) =>
+    (j.studio === 'anime' ? animeStages : podcastStages).slice(0, -1).includes(j.stage)
+  );
 
-        <div className="anime-control-group">
-          <div className="anime-control-header">
-            <span>Audio Mixer</span>
-            <small>{sourceAudio}% Voice / {music}% Music</small>
+  return (
+    <div className="app">
+      {/* Professional Sidebar Navigation */}
+      <Sidebar
+        studio={studio}
+        setStudio={(s) => {
+          setStudio(s);
+          go('home');
+        }}
+        page={page}
+        go={go}
+        completed={completed}
+        hardware={data?.hardware || ''}
+        runtimeReady={Boolean(data?.runtime.ready)}
+        selectedJob={Boolean(job)}
+      />
+
+      <main>
+        {/* Studio Header Bar */}
+        <Header
+          page={page}
+          studio={studio}
+          jobName={job?.name || job?.title || null}
+          hasActiveJob={Boolean(activeJob)}
+        />
+
+        {/* Global Error Banner */}
+        {error && (
+          <div className="alert" role="alert" style={{ margin: '16px 40px 0' }}>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+            <button
+              onClick={() => setError('')}
+              aria-label="Dismiss error"
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'inherit' }}
+            >
+              <X size={16} />
+            </button>
           </div>
-          <div className="audio-sliders">
-            <label className="slider-row">
-              <div className="slider-row-labels">
-                <span>Anime Voice & SFX</span>
-                <strong>{sourceAudio}%</strong>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={sourceAudio}
-                onChange={e=>setSourceAudio(parseInt(e.target.value,10))}
-                disabled={isWorking}
+        )}
+
+        {/* Floating Toast Notification */}
+        {toast && (
+          <div className="toast" role="status">
+            <span>{toast}</span>
+            <button
+              onClick={() => setToast('')}
+              aria-label="Dismiss message"
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        <div className="page">
+          {!api ? (
+            <div className="empty">
+              <Monitor size={48} />
+              <h2>Launch REELMIND Desktop App</h2>
+              <p>This is the studio frontend. Run within Electron desktop runtime to process media.</p>
+            </div>
+          ) : !data ? (
+            <div className="empty">
+              <LoaderCircle className="spin" size={32} />
+              <p>Initializing your creative studio…</p>
+            </div>
+          ) : job ? (
+            <ProjectDetail
+              job={job}
+              busy={busy}
+              onAction={(action) => act(() => api.action(job.id, action))}
+              onSave={() =>
+                act(async () => {
+                  const dest = await api.save(job.id);
+                  if (dest) setToast(`Your Reels are saved in ${dest}`);
+                })
+              }
+              onRerender={(conceptId, opts) =>
+                act(async () => {
+                  if (api?.rerenderAnime) await api.rerenderAnime(job.id, conceptId, opts);
+                  setToast('AMV edit re-rendered successfully.');
+                })
+              }
+              back={() => setSelected(null)}
+            />
+          ) : page === 'new' ? (
+            studio === 'anime' ? (
+              <NewProjectAnime
+                ready={data.runtime.ready}
+                busy={busy}
+                settings={() => go('settings')}
+                onCreate={(input) =>
+                  act(async () => {
+                    if (api.createAnime) setSelected(await api.createAnime(input));
+                  })
+                }
+                pickVideo={() => api.pickVideo()}
+                pickAudio={() => (api.pickAudio ? api.pickAudio() : Promise.resolve(null))}
               />
-            </label>
-            <label className="slider-row">
-              <div className="slider-row-labels">
-                <span>Music Track</span>
-                <strong>{music}%</strong>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={music}
-                onChange={e=>setMusic(parseInt(e.target.value,10))}
-                disabled={isWorking}
+            ) : (
+              <NewProjectPodcast
+                ready={data.runtime.ready}
+                busy={busy}
+                settings={() => go('settings')}
+                onCreate={(input) =>
+                  act(async () => {
+                    setSelected(await api.create(input));
+                  })
+                }
+                pick={() => api.pickVideo()}
               />
-            </label>
-          </div>
+            )
+          ) : page === 'library' ? (
+            <Library
+              jobs={data.jobs}
+              studio={studio}
+              onOpenProject={(id) => setSelected(id)}
+              onNewProject={() => go('new')}
+            />
+          ) : page === 'settings' ? (
+            <SettingsView
+              data={data}
+              busy={busy}
+              save={(s, k) =>
+                act(async () => {
+                  await api.settings(s, k);
+                  setToast('Settings saved securely to Windows Credential Manager.');
+                })
+              }
+              setup={() => act(() => api.setup())}
+            />
+          ) : (
+            <Overview
+              studio={studio}
+              jobs={studioJobs}
+              runtimeReady={data.runtime.ready}
+              onOpenProject={(id) => setSelected(id)}
+              onNewProject={() => go('new')}
+              onGoSettings={() => go('settings')}
+            />
+          )}
         </div>
-
-        <button
-          type="button"
-          className="rerender-btn"
-          disabled={isWorking}
-          onClick={handleRerender}
-        >
-          {localBusy?<><LoaderCircle className="spin" size={14}/> Re-rendering AMV...</>:<><Sparkles size={14}/> Re-render AMV (~3s)</>}
-        </button>
-      </div>
-
-      <div className="anime-output-footer">
-        <small>{reel.savedPath?<><CheckCircle2 size={12}/> Saved to folder</>:'Ready to save'}</small>
-        <span>9:16 Vertical HD</span>
-      </div>
+      </main>
     </div>
-  </article>;
+  );
 }
-function Project({job,busy,onAction,onSave,onRerender,back}:{job:Job;busy:boolean;onAction:(action:'pause'|'resume'|'delete')=>void;onSave:()=>void;onRerender:(conceptId:number,options:AnimeRerenderOptions)=>Promise<void>;back:()=>void}){
-  const isAnime=job.studio==='anime';
-  const currentStages=isAnime?animeStages:podcastStages;
-  const done=job.stage==='completed'||job.stage==='expired',recover=['paused','failed'].includes(job.stage);
-  const hours=job.cleanupAt?Math.max(0,(job.cleanupAt-Date.now())/3600000):0;
-  const currentStage=recover?job.checkpoint:job.stage,stageIndex=currentStages.indexOf(currentStage);
-  const savedCount=job.outputs.filter(reel=>reel.savedPath).length;
-  return <div className="project-detail">
-    <button className="text-button back-button" onClick={back}>← Back to studio</button>
-    <div className="project-heading"><div><div className="eyebrow">{done?'PROJECT RESULTS':recover?'PROJECT RECOVERY':'PROJECT IN PROGRESS'}</div><h1 className="job-title">{job.name||job.title}</h1>{job.name&&job.name!==job.title&&<small>Source: {job.title}</small>}<p>{job.message}</p></div><span className={'badge '+job.stage}>{labels[job.stage]}</span></div>
-    {!done&&<section className="panel processing"><div className="progress-title"><div><span className="eyebrow">{recover?'LAST SAVED STAGE':`${isAnime?'ANIME STUDIO':job.provider.toUpperCase()} · ACTIVE JOB`}</span><h2>{recover?labels[currentStage]||'Ready to resume':labels[job.stage]}</h2></div><span>{Math.floor(job.progress)}<small>%</small></span></div><progress value={job.progress} max={100} aria-label="Overall processing progress"/><p className="processing-message" role="status">{job.message}</p><div className="pipeline" aria-label="Processing stages">{currentStages.slice(0,-1).map((s,i)=><div key={s} className={stageIndex>i?'finished':stageIndex===i?'current':''}><span>{stageIndex>i?<Check size={16}/>:i+1}</span>{labels[s]}</div>)}</div><div className="process-actions">{recover?<button className="primary" disabled={busy} onClick={()=>onAction('resume')}><RotateCcw size={16}/>Resume project</button>:job.stage==='expired'?null:<button className="secondary" disabled={busy} onClick={()=>onAction('pause')}><Pause size={16}/>Pause processing</button>}<small>{isAnime?(job.animeAnalysis?`${job.animeAnalysis.shotCount} shots detected so far. `:''):job.outputs.length?`${job.outputs.length} ${job.outputs.length===1?'Reel':'Reels'} rendered so far. `:''}Progress is saved after each completed stage.</small></div></section>}
-    {!!job.fallbacks?.length&&<section className="fallback-history" aria-label="Automatic fallback status"><strong>Automatic fallback</strong><ul>{job.fallbacks.map(item=><li key={item}>{item}</li>)}</ul><small>Processing continues with the next available option.</small></section>}
-    {job.error&&<div className="alert" role="alert"><AlertCircle size={18}/><span>{job.error}</span></div>}
-    {job.cleanupAt&&!job.workingDeleted&&<div className={'recovery '+(hours<2?'urgent':'')}><HardDrive size={19}/><p>{done?'Working files':'Recovery files'} expire in <strong>{hours<1?Math.ceil(hours*60)+' minutes':Math.ceil(hours)+' hours'}</strong>. {done?'Unsaved finished Reels will remain available.':'Resume before this countdown ends.'}</p></div>}
-    {isAnime&&done&&job.animeAnalysis&&<div className="anime-analysis-card">
-      <div className="analysis-header"><Sparkles size={24}/><div><h3>Anime Intelligence & Candidates Ready</h3><p>Local intelligence complete: Motion analyzed, audio dynamics mapped, impact spikes calculated, and candidate moments ranked.</p></div></div>
-      <div className="analysis-stats">
-        <div className="stat-box"><strong>{job.animeAnalysis.conceptsCount||job.animeAnalysis.concepts?.length||0}</strong><small>AMV Concepts</small></div>
-        <div className="stat-box"><strong>{job.animeAnalysis.candidatesCount||0}</strong><small>Ranked Candidates</small></div>
-        <div className="stat-box"><strong>{job.animeAnalysis.bpm} BPM</strong><small>Music Tempo</small></div>
-        <div className="stat-box"><strong>{job.animeAnalysis.language==='ja'?'Japanese':'English'}</strong><small>Dialogue Language</small></div>
-      </div>
-      {!!job.animeAnalysis.concepts?.length&&<div className="concepts-section">
-        <div className="candidate-heading"><h4>Selected AMV Edit Concepts ({job.animeAnalysis.concepts.length} Ready)</h4><small>Diverse concepts optimized for 9:16 AMV editing</small></div>
-        <div className="concepts-grid">
-          {job.animeAnalysis.concepts.map(c => <div key={c.id} className="concept-card">
-            <div className="concept-top">
-              <span className={'candidate-tag ' + c.category}>{c.category.toUpperCase()}</span>
-              <span className="concept-style-tag">{c.style.replace(/_/g, ' ').toUpperCase()}</span>
-            </div>
-            <strong>{c.title}</strong>
-            <p>{c.description}</p>
-            <div className="concept-footer">
-              <span>{c.duration}s Cut (Hit @ {c.impactTime}s)</span>
-              <span className="concept-score">{c.qualityScore}% Quality</span>
-            </div>
-          </div>)}
-        </div>
-      </div>}
-      {!!job.animeAnalysis.candidates?.length&&<div className="candidate-moments-section">
-        <div className="candidate-heading"><h4>Ranked Candidate Moments</h4><small>Top {job.animeAnalysis.candidates.length} moments filtered for AMV edit alignment</small></div>
-        <div className="candidate-grid">
-          {job.animeAnalysis.candidates.slice(0, 12).map(c => <div key={c.id} className="candidate-card">
-            <div className="candidate-header">
-              <span className={'candidate-tag ' + c.category}>{c.category.toUpperCase()}</span>
-              <span className="candidate-score">{Math.round(c.totalScore * 100)}% Match</span>
-            </div>
-            <div className="candidate-timing">
-              <strong>{c.duration}s</strong>
-              <small>{c.start}s → {c.end}s (Hit: {c.impactTime}s)</small>
-            </div>
-            {c.hasDialogue&&c.dialogueText&&<p className="candidate-dialogue">"{c.dialogueText}"</p>}
-          </div>)}
-        </div>
-      </div>}
-    </div>}
-    {job.outputs.length>0?<section className="results-section"><div className="results-heading"><div><span className="eyebrow">{done?'RENDER COMPLETE':'FINISHED SO FAR'}</span><h2>{job.outputs.length} {job.outputs.length===1?'Reel':'Reels'} ready</h2><p>{savedCount===job.outputs.length?'All Reels are saved in your chosen folder.':`${savedCount} saved · ${job.outputs.length-savedCount} ready to save`}</p></div>{done&&<button className="primary" disabled={busy||savedCount===job.outputs.length} onClick={onSave}>{busy?<LoaderCircle className="spin" size={17}/>:<FolderDown size={17}/>} {savedCount===job.outputs.length?'All Reels saved':'Save Reels'}</button>}</div><div className="reel-grid">{job.outputs.map((reel,i)=>isAnime?<AnimeReelCard key={reel.id} job={job} reel={reel} index={i} busy={busy} onRerender={onRerender}/>:<article className="output-card" key={reel.id}><video controls preload="metadata" src={`reel://output/${job.id}/${reel.id}`} aria-label={`Reel ${i+1}: ${reel.title}`}/><div><span className="eyebrow">REEL {String(i+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span><h3>{reel.title}</h3><small>{reel.savedPath?<><CheckCircle2 size={13}/>Saved to your folder</>:'Ready to save'}</small></div></article>)}</div><p className="privacy"><FolderDown size={15}/>Choose a folder outside REELMIND. Files are verified before internal copies are removed.</p></section>:done&&!isAnime&&<div className="result-empty"><Clapperboard size={24}/><h2>No Reels in this project</h2><p>{job.message}</p></div>}
-    <button className="danger-text" disabled={busy} onClick={()=>onAction('delete')}><Trash2 size={15}/>Delete project</button>
-  </div>;
-}
-function Preferences({data,busy,save,setup}:{data:Status;busy:boolean;save:(s:Settings,k:Partial<Record<Provider,string>>)=>void;setup:()=>void}){
-  const [s,setS]=useState(data.settings),[keys,setKeys]=useState<Partial<Record<Provider,string>>>({});
-  return <div className="narrow settings"><div className="eyebrow">MAKE IT YOURS</div><h1>Studio settings.</h1><p className="intro">A little setup. A lot of possibilities.</p><section className="panel"><div className="section-heading"><h2><Cpu size={20}/>Local engine</h2><span className={'badge '+(data.runtime.ready?'completed':'paused')}>{data.runtime.ready?'Ready':'Setup needed'}</span></div><p>Speech recognition, speaker matching, face tracking and multilingual fonts run on your computer.</p><div className="hardware"><Monitor size={18}/>{data.hardware}</div>{!data.runtime.ready&&<><button className="primary" disabled={data.setup.running||busy} onClick={setup}>{data.setup.running?<LoaderCircle className="spin" size={16}/>:<Download size={16}/>}Download local engine</button><small className="block">One-time download: approximately 1–2 GB. Internet is needed for setup.</small></>}{data.setup.message&&<p role="status">{data.setup.message}</p>}{data.setup.error&&<div className="alert">{data.setup.error}</div>}</section><section className="panel"><div className="section-heading"><h2><Sparkles size={20}/>Optional AI intelligence</h2><label className="switch"><input type="checkbox" checked={s.cloudEnabled} onChange={e=>setS({...s,cloudEnabled:e.target.checked})}/>Enabled</label></div><p>Only transcript text goes to your provider. If a service is unavailable, local analysis takes over.</p><label>PROVIDER PRIORITY<select value={s.providerOrder[0]} onChange={e=>setS({...s,providerOrder:e.target.value==='gemini'?['gemini','openrouter']:['openrouter','gemini']})}><option value="gemini">Gemini → OpenRouter → Local</option><option value="openrouter">OpenRouter → Gemini → Local</option></select></label>{(['gemini','openrouter'] as const).map(p=><div className="provider-fields" key={p}><label>{p==='gemini'?'GEMINI':'OPENROUTER'} API KEY <span>{data.keys[p]?'Securely stored':'Not connected'}</span><input type="password" autoComplete="off" placeholder={data.keys[p]?'Leave blank to keep saved key':'Paste your API key'} value={keys[p]||''} onChange={e=>setKeys({...keys,[p]:e.target.value})}/></label><label>MODEL<input value={p==='gemini'?s.geminiModel:s.openrouterModel} onChange={e=>setS({...s,[p==='gemini'?'geminiModel':'openrouterModel']:e.target.value})}/></label>{data.keys[p]&&<button className="text-button" onClick={()=>setKeys({...keys,[p]:''})}>Mark saved key for removal</button>}</div>)}<label className="check-line"><input type="checkbox" checked={s.geminiFreeConfirmed} onChange={e=>setS({...s,geminiFreeConfirmed:e.target.checked})}/><span>I use a Gemini API project with billing disabled. REELMIND cannot check its billing status.</span></label><p className="privacy"><ShieldCheck size={15}/>Keys are stored in Windows Credential Manager. OpenRouter accepts free models only.</p></section><TranscriptionSettings data={data} settings={s} onChange={setS}/><section className="panel"><h2>Export quality</h2><label>1080 × 1920 · MP4 · SOURCE AUDIO ONLY<select value={s.quality} onChange={e=>setS({...s,quality:e.target.value as Settings['quality']})}><option value="balanced">Balanced — smaller files</option><option value="high">High — finer detail</option></select></label><p>Up to 12 clips, 30–60 seconds each. Working files expire after 24 hours. Unsaved finished Reels stay until saved or deleted.</p></section><button className="primary" disabled={busy} onClick={()=>save(s,keys)}><Check size={17}/>Save settings</button></div>;
-}
-createRoot(document.getElementById('root')!).render(<App/>);
-import brandMark from '../assets/logo.svg';
+
+createRoot(document.getElementById('root')!).render(<App />);

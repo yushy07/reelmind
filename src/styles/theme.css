@@ -1,0 +1,258 @@
+/* REELMIND Design System - High-End Studio Glassmorphism & Color Theme */
+
+:root {
+  /* Color Palette - Deep Obsidian Canvas & Layered Glass Surfaces */
+  --bg-canvas: #09080e;
+  --bg-canvas-subtle: #0d0c14;
+  --bg-sidebar: rgba(14, 12, 22, 0.82);
+  --bg-surface: rgba(22, 18, 34, 0.65);
+  --bg-surface-elevated: rgba(30, 25, 46, 0.75);
+  --bg-surface-hover: rgba(40, 33, 62, 0.85);
+  --bg-surface-active: rgba(48, 38, 75, 0.95);
+  --bg-glass-card: rgba(24, 20, 38, 0.55);
+  --bg-glass-panel: rgba(18, 15, 28, 0.72);
+  --bg-glass-input: rgba(12, 10, 20, 0.6);
+
+  /* Specular Highlights & Glass Borders */
+  --border-glass-subtle: rgba(255, 255, 255, 0.06);
+  --border-glass-default: rgba(255, 255, 255, 0.1);
+  --border-glass-strong: rgba(255, 255, 255, 0.18);
+  --border-glass-highlight: rgba(255, 255, 255, 0.28);
+  --border-focus: #a78bfa;
+
+  /* Specular Inner Lighting (Gives real physical glass bevels) */
+  --glass-inner-light: inset 0 1px 1px 0 rgba(255, 255, 255, 0.14);
+  --glass-inner-light-strong: inset 0 1px 2px 0 rgba(255, 255, 255, 0.22);
+  --glass-inner-shadow: inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35);
+
+  /* Studio Accent Colors - Podcast Studio */
+  --podcast-primary: #a78bfa;
+  --podcast-primary-hover: #c4b5fd;
+  --podcast-primary-active: #8b5cf6;
+  --podcast-glow: rgba(167, 139, 250, 0.35);
+  --podcast-gradient: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #6366f1 100%);
+  --podcast-glass-bg: rgba(167, 139, 250, 0.1);
+  --podcast-glass-border: rgba(167, 139, 250, 0.28);
+
+  /* Studio Accent Colors - Anime AMV Studio (Cyberpunk Neon) */
+  --anime-primary: #f43f5e;
+  --anime-primary-hover: #fb7185;
+  --anime-primary-active: #e11d48;
+  --anime-secondary: #9333ea;
+  --anime-cyan: #06b6d4;
+  --anime-cyan-glow: rgba(6, 182, 212, 0.3);
+  --anime-glow: rgba(244, 63, 94, 0.38);
+  --anime-gradient: linear-gradient(135deg, #f43f5e 0%, #ec4899 45%, #8b5cf6 100%);
+  --anime-glass-bg: rgba(244, 63, 94, 0.1);
+  --anime-glass-border: rgba(244, 63, 94, 0.32);
+
+  /* Status Colors */
+  --status-ready: #10b981;
+  --status-ready-bg: rgba(16, 185, 129, 0.12);
+  --status-ready-border: rgba(16, 185, 129, 0.3);
+  --status-working: #a78bfa;
+  --status-working-bg: rgba(167, 139, 250, 0.15);
+  --status-working-border: rgba(167, 139, 250, 0.35);
+  --status-paused: #f59e0b;
+  --status-paused-bg: rgba(245, 158, 11, 0.12);
+  --status-paused-border: rgba(245, 158, 11, 0.3);
+  --status-failed: #ef4444;
+  --status-failed-bg: rgba(239, 68, 68, 0.12);
+  --status-failed-border: rgba(239, 68, 68, 0.3);
+
+  /* Typography Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #9490a6;
+  --text-subtle: #625d74;
+  --text-inverse: #09080e;
+
+  /* Typography Scale */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", monospace;
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 48px -8px rgba(0, 0, 0, 0.65);
+  --shadow-glass: 0 12px 36px 0 rgba(0, 0, 0, 0.45);
+  --shadow-podcast-glow: 0 0 28px rgba(167, 139, 250, 0.25);
+  --shadow-anime-glow: 0 0 28px rgba(244, 63, 94, 0.25);
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --transition-fast: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Base Document Setup */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-canvas);
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(139, 92, 246, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(244, 63, 94, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.02) 0%, transparent 60%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom Sleek Glass Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(8px);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Universal Typography */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+p {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+a {
+  color: var(--podcast-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Glass Inputs & Controls */
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-glass-input);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass-default);
+  border-radius: var(--radius-md);
+  padding: 11px 15px;
+  width: 100%;
+  box-shadow: var(--glass-inner-shadow);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: var(--border-glass-strong);
+  background: rgba(16, 13, 26, 0.7);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--podcast-primary);
+  box-shadow: 0 0 0 3px var(--podcast-glow), var(--glass-inner-shadow);
+  background: rgba(18, 14, 28, 0.85);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+/* Keyframe Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.9); }
+}
+
+@keyframes radarPing {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  70% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes cardGlowHover {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.pulse {
+  animation: pulse 1.8s ease-in-out infinite;
+}
