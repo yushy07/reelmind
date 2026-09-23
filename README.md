@@ -125,6 +125,8 @@ For checks, use `npm test`, `npm run typecheck`, `npm run check:secrets`, and `n
 
 Real multilingual and multi-speaker podcast evaluation is still needed. Speech recognition and active-speaker framing can be wrong around overlapping voices, very short turns, rapid language switching, or scene cuts. Local heuristic ranking is less capable than a strong cloud model; neither mode guarantees a great editorial choice. Public-link support depends on third-party sites and may need tool updates. V1 has no manual caption correction after rendering.
 
+The [MiniLM and optional Whisper Turbo upgrade plan](docs/MINILM_TURBO_PLAN.md) covers semantic deduplication, verified model downloads, per-job transcription choices, and release acceptance checks. These model upgrades are planned, not included in v0.1.1.
+
 ## License, credits, and safety
 
 Copyright **2026 Ayush Kant**. Original REELMIND code and branding are licensed under the [Apache License 2.0](LICENSE). Bundled third-party tools, models, and fonts retain their own licenses; see [NOTICE](NOTICE), [third-party notices](THIRD_PARTY.md), and [redistribution details](THIRD_PARTY_LICENSES.md).
