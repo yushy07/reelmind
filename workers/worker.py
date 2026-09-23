@@ -13,51 +13,19 @@ def save(file, data):
     Path(temp).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
     os.replace(temp, file)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from shared.transcription import run_transcription
+
 def transcribe(args):
-    import numpy as np
-    from faster_whisper import WhisperModel
-    from faster_whisper.audio import decode_audio
-    audio = decode_audio(args.input, sampling_rate=16000)
     model_path = args.model_path or str(Path(args.models) / 'whisper-small')
-    def run_model(model, device):
-        result = []
-        # Re-detect language every 30 seconds, allowing Hindi/English/Japanese switches.
-        for start in range(0, len(audio), 30 * 16000):
-            offset = start / 16000
-            chunk = audio[start:start + 30 * 16000]
-            provisional, _ = model.transcribe(chunk, beam_size=5, word_timestamps=True, vad_filter=True, condition_on_previous_text=False)
-            provisional = list(provisional)
-            for s in provisional:
-                if s.no_speech_prob > .75 or not s.words:
-                    continue
-                sample_start=max(0, int((s.start-.2)*16000));sample_end=min(len(chunk),int((s.end+.2)*16000));sample=chunk[sample_start:sample_end]
-                language, probability, _ = model.detect_language(audio=sample, vad_filter=False)
-                if probability < .45:
-                    language='en'
-                refined, _ = model.transcribe(sample, beam_size=5, word_timestamps=True, vad_filter=False, language=language, condition_on_previous_text=False)
-                base=offset+sample_start/16000
-                for part in refined:
-                    if part.no_speech_prob > .75 or not part.words:
-                        continue
-                    words = [{'start': w.start + base, 'end': w.end + base, 'text': w.word, 'probability': w.probability} for w in part.words if w.end > w.start]
-                    if words:
-                        result.append({'start': words[0]['start'], 'end': words[-1]['end'], 'text': part.text.strip(), 'language': language, 'language_probability': probability, 'energy': float(np.sqrt(np.mean(sample**2))) if len(sample) else 0, 'words': words})
-            emit(progress=min(.99, (start + len(chunk))/len(audio)), message=f'Transcribing speech locally · {device}')
-        return result
-    result = None
-    if args.gpu:
-        try:
-            emit(progress=0, message='Starting GPU speech recognition')
-            model = WhisperModel(model_path, device='cuda', compute_type='float16', local_files_only=True)
-            result = run_model(model, 'GPU')
-        except Exception:
-            emit(fallback='GPU speech unavailable; using CPU instead', message='GPU speech unavailable · continuing on CPU')
-    if result is None:
-        model = WhisperModel(model_path, device='cpu', compute_type='int8', cpu_threads=4, local_files_only=True)
-        result = run_model(model, 'CPU')
-    if not result:
-        raise ValueError('No clear speech found in this video.')
-    save(args.output, {'version': 1, 'duration': len(audio)/16000, 'language': result[0]['language'], 'segments': result})
+    data = run_transcription(
+        audio_path=args.input,
+        model_path=model_path,
+        gpu=args.gpu,
+        explicit_language=None,
+        emit=emit,
+    )
+    save(args.output, data)
 
 def frame_video(args):
     import cv2

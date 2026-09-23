@@ -137,3 +137,23 @@ textarea:focus-visible,summary:focus-visible{outline:2px solid #d6b8ff;outline-o
 
 @media(max-width:1100px){.import-panel{padding:23px}.project-row{padding:13px}.project-row .badge{font-size:9px}.reel-grid{gap:13px}}
 @media(max-width:850px){aside{width:75px;padding-inline:11px}aside .brand{font-size:0;justify-content:center}aside .brand-icon{margin:0}aside .brand-dot,.workspace-label,.new-button kbd,.nav-label,.sidebar-bottom,.new-button{display:none}nav{margin-top:30px}nav button{justify-content:center;padding:0;font-size:0}nav button svg{flex:none}main{margin-left:75px;width:calc(100% - 75px)}.page{padding:24px}header{padding-inline:24px}.import-summary{flex-wrap:wrap}.results-heading{align-items:flex-start;flex-direction:column}}
+
+/* Anime Studio additions */
+.studio-switcher{display:flex;background:#181420;border:1px solid #3c3248;border-radius:10px;padding:3px;margin:14px 0 16px;gap:4px}
+.studio-pill{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;background:transparent;border:0;color:#9b8ea7;font-size:12px;font-weight:600;padding:7px 10px;border-radius:7px;cursor:pointer;transition:all .18s ease}
+.studio-pill:hover{color:#e6ddf1}
+.studio-pill.active{background:#38264e;color:#f0e4ff;box-shadow:0 2px 8px #ae88fa28}
+.language-selector{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 16px}
+.language-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;background:#191622;border:1px solid #3f364d;border-radius:9px;color:#c9bed7;font-size:13px;font-weight:600;cursor:pointer;transition:all .18s ease}
+.language-btn:hover{border-color:#755998;color:#fff}
+.language-btn.active{border-color:#b48bf5;background:#2b1e3c;color:#f5eeff;box-shadow:0 0 0 2px #ae88fa24}
+.aspect-badge{display:inline-flex;align-items:center;padding:5px 10px;background:#241d2e;border:1px solid #48395a;border-radius:6px;font-size:11px;color:#d7c3eb;font-weight:600}
+.anime-analysis-card{margin-top:24px;padding:22px;border:1px solid #57436f;background:#1f192b;border-radius:12px}
+.analysis-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.analysis-header svg{color:#d5b4ff;flex:none}
+.analysis-header h3{font-size:16px;margin:0 0 4px;color:#f4eff9}
+.analysis-header p{margin:0;font-size:12px;color:#b2a3c2}
+.analysis-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat-box{padding:14px;background:#171320;border:1px solid #3d314c;border-radius:9px;text-align:center}
+.stat-box strong{display:block;font-size:18px;color:#e8d7ff;margin-bottom:4px}
+.stat-box small{font-size:11px;color:#9d90ac;text-transform:uppercase;letter-spacing:.04em}

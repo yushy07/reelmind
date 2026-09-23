@@ -10,7 +10,7 @@ import { ModelManager, TURBO } from './models';
 import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
-import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput } from '../shared/types';
+import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis } from '../shared/types';
 import { parsePastedTranscript } from './pasted-transcript';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -44,7 +44,15 @@ export class Service {
     if(pastedTranscript!==undefined){const work=this.work(job.id);await fs.mkdir(work,{recursive:true});const inputFile=path.join(work,'pasted-transcript.txt');await fs.writeFile(inputFile+'.part',pastedTranscript,'utf8');await fs.rename(inputFile+'.part',inputFile);}
     this.store.put(job);this.changed();this.pump();return job.id;
   }
-  pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}
+  async createAnime(request:AnimeCreateInput){
+    if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
+    if(!this.allowedInputs.has(request.episodePath))throw new Error('Choose your anime episode with the file picker.');
+    if(!this.allowedInputs.has(request.musicPath))throw new Error('Choose your music track with the file picker.');
+    const now=this.store.now();const title=request.name?.trim()||path.basename(request.episodePath);
+    const job:Job={id:randomUUID(),studio:'anime',name:request.name?.trim()||undefined,title,input:{kind:'local',value:request.episodePath,musicPath:request.musicPath,language:request.language||'ja',name:request.name?.trim()||undefined},stage:'queued',checkpoint:'queued',progress:0,message:'Ready to analyze anime episode',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
+    this.store.put(job);this.changed();this.pump();return job.id;
+  }
+  pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job){if(job.studio==='anime')void this.processAnime(job);else void this.process(job);}}
   async action(id:string,action:'pause'|'resume'|'delete'){
     const job=this.store.get(id);if(!job)throw new Error('Project not found.');
     if(this.saving.has(id))throw new Error('Wait for the save to finish.');
@@ -136,6 +144,61 @@ export class Service {
       this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:this.store.now()+DAY});this.notify(job);
     }catch(error){this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});}
     finally{this.active.delete(job.id);this.pump();}
+  }
+  async processAnime(job:Job){
+    const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
+    const phase=(stage:Stage,progress:number,message:string)=>this.update(job,{stage,checkpoint:stage,progress,message,cleanupAt:undefined});
+    try{
+      await fs.mkdir(work,{recursive:true});await fs.mkdir(output,{recursive:true});
+      phase('importing',4,'Preparing anime episode and music');
+      const episodeSource=path.join(work,'episode'+path.extname(job.input.value).toLowerCase());
+      if(!await exists(episodeSource)){
+        const stat=await fs.stat(job.input.value);const disk=await fs.statfs(work);
+        if(Number(disk.bavail)*Number(disk.bsize)<stat.size*2+2e9)throw new Error('Not enough free disk space for episode, working files and edits.');
+        await fs.copyFile(job.input.value,episodeSource+'.part');signal.throwIfAborted();await fs.rename(episodeSource+'.part',episodeSource);
+      }
+      const musicPath=job.input.musicPath||'';
+      const musicSource=path.join(work,'music'+path.extname(musicPath).toLowerCase());
+      if(musicPath&&!await exists(musicSource)){
+        await fs.copyFile(musicPath,musicSource+'.part');signal.throwIfAborted();await fs.rename(musicSource+'.part',musicSource);
+      }
+      const media=await probe(this.runtime,episodeSource,signal);this.update(job,{duration:media.duration});
+      const audio=path.join(work,'audio.wav');
+      if(!await exists(audio)){
+        await run(path.join(this.runtime,'ffmpeg.exe'),['-y','-i',episodeSource,'-vn','-ac','1','-ar','16000','-c:a','pcm_s16le',audio+'.part.wav'],{signal});
+        await fs.rename(audio+'.part.wav',audio);
+      }
+      phase('scenes',22,'Detecting anime shots and scene transitions');
+      const shotsFile=path.join(work,'shots.json');
+      const shots=await this.checkpoint<AnimeShot[]>(shotsFile,d=>Array.isArray(d)&&d.length>0,async()=>{
+        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'anime_worker.py'),'detect-scenes','--input',episodeSource,'--output',shotsFile],{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:22+p.progress*26,message:p.message});}catch{}}});
+        return JSON.parse(await fs.readFile(shotsFile,'utf8'));
+      },fingerprint({episode:await hash(episodeSource),v:1}));
+      phase('music',50,'Mapping music beat grid and rhythm dynamics');
+      const musicMapFile=path.join(work,'music_map.json');
+      const musicMap=await this.checkpoint<MusicMap>(musicMapFile,d=>typeof d==='object'&&Array.isArray(d.beats),async()=>{
+        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'anime_worker.py'),'analyze-music','--input',musicSource,'--output',musicMapFile],{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:50+p.progress*22,message:p.message});}catch{}}});
+        return JSON.parse(await fs.readFile(musicMapFile,'utf8'));
+      },fingerprint({music:await hash(musicSource),v:1}));
+      const lang=job.input.language||'ja';
+      phase('transcribing',74,`Transcribing dialogue (${lang==='ja'?'Japanese':'English'})`);
+      const transcriptFile=path.join(work,'transcript.json');
+      const transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments),async()=>{
+        const transcribeArgs=[path.join(this.workers,'anime_worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models'),'--language',lang];
+        if(this.renderHardware.cudaSpeechCandidate)transcribeArgs.push('--gpu');
+        await run(path.join(this.runtime,'python/python.exe'),transcribeArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:74+p.progress*24,message:p.message});}catch{}}});
+        return JSON.parse(await fs.readFile(transcriptFile,'utf8'));
+      },fingerprint({audio:await hash(audio),language:lang,v:1}));
+      const episodeFile=path.join(work,'episode.json');
+      const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm};
+      await atomicJSON(episodeFile,analysis);await this.seal(episodeFile);
+      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${musicMap.bpm} BPM, ${transcript.segments.length} dialogue segments`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang}});
+      this.notify(job);
+    }catch(error){
+      this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});
+    }finally{
+      this.active.delete(job.id);this.pump();
+    }
   }
   async save(id:string,dir:string,blocked:string[]){
     const job=this.store.get(id);if(!job||!['completed','expired'].includes(job.stage))throw new Error('Finish rendering before saving.');
