@@ -1,6 +1,6 @@
 # Third-party components
 
-This personal build includes Electron, React, TypeScript, FFmpeg, yt-dlp, portable CPython, faster-whisper/CTranslate2, Silero VAD, ONNX Runtime, OpenCV YuNet, Sherpa ONNX speaker embeddings, Whisper small and Noto fonts.
+This personal build includes Electron, React, TypeScript, FFmpeg, yt-dlp, portable CPython, faster-whisper/CTranslate2, Silero VAD, ONNX Runtime, OpenCV YuNet, Sherpa ONNX speaker embeddings, PySceneDetect, librosa, Whisper small and Noto fonts.
 
 Upstream licenses and notices are preserved in the packaged runtime and generated dependency inventory. Python packages retain their distribution metadata in the portable runtime. Electron bundles its licenses. Noto fonts use the SIL Open Font License. The Whisper model is MIT licensed.
 

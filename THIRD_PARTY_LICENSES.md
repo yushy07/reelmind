@@ -15,6 +15,8 @@ Generated from the dependencies packaged with REELMIND 2026-09-23. Package metad
 | OpenCV YuNet model | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | Apache-2.0 |
 | Sherpa ONNX speaker model/runtime | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Apache-2.0 |
 | Noto fonts | [Google Noto](https://github.com/notofonts) | OFL-1.1 |
+| PySceneDetect | [PySceneDetect](https://github.com/Breakthrough/PySceneDetect) | BSD-3-Clause |
+| librosa | [librosa](https://github.com/librosa/librosa) | ISC |
 
 ## JavaScript packages
 
