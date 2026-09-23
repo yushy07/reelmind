@@ -60,9 +60,10 @@ async function main() {
 
 - Bundled local MiniLM semantic clip diversity with lexical fallback
 - Optional verified Whisper Turbo download; Standard remains default
+- Optional plain-text or timestamped SRT/VTT transcript paste in New Project
 - Per-project model snapshots, CPU fallback and resumable model downloads
 - Includes Whisper small, MiniLM, FFmpeg and the local runtime; Turbo is not bundled
-- Personal-use prerelease: see docs/MODEL_UPGRADE_VALIDATION.md for verified checks and remaining language evaluation
+- Personal-use prerelease: real Hindi/Hinglish, Japanese and mixed-language evaluation remains in progress; see docs/MODEL_UPGRADE_VALIDATION.md
 
 Source commit: ${commit}
 
