@@ -6,11 +6,22 @@ const cueLine=new RegExp(`^[ \\t]*(${timecode})[ \\t]*-->[ \\t]*(${timecode})(?:
 
 function seconds(value:string){
   const parts=value.replace(',','.').split(':');
-  const fraction=Number(`0.${parts.pop()!.split('.')[1]||'0'}`);
-  const seconds=Number(parts.pop()),minutes=Number(parts.pop()),hours=Number(parts.pop()||0);
+  const [wholeSeconds,fractionalSeconds='0']=parts.pop()!.split('.');
+  const fraction=Number(`0.${fractionalSeconds||'0'}`);
+  const seconds=Number(wholeSeconds),minutes=Number(parts.pop()),hours=Number(parts.pop()||0);
   return hours*3600+minutes*60+seconds+fraction;
 }
-function clean(value:string){return value.replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\s+/gu,' ').trim();}
+const htmlEntities:Record<string,string>={nbsp:' ',amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"};
+function decodeEntity(entity:string,code:string){
+  if(code[0]==='#'){
+    const hexadecimal=code[1]?.toLowerCase()==='x';
+    const point=Number.parseInt(code.slice(hexadecimal?2:1),hexadecimal?16:10);
+    if(!Number.isInteger(point)||point<0||point>0x10ffff||(point>=0xd800&&point<=0xdfff))return entity;
+    return String.fromCodePoint(point);
+  }
+  return htmlEntities[code.toLowerCase()]??entity;
+}
+function clean(value:string){return value.replace(/<[^>]*>/g,'').replace(/&(#(?:x[0-9a-f]+|[0-9]+)|[a-z][a-z0-9]+);/gi,(entity,code:string)=>decodeEntity(entity,code)).replace(/\s+/gu,' ').trim();}
 function language(value:string){
   if(/[\u3040-\u30ff\u3400-\u9fff]/u.test(value))return 'ja';
   if(/[\u0900-\u097f]/u.test(value))return 'hi';
