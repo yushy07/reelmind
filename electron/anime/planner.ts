@@ -112,7 +112,8 @@ export function planAnimeEdit(
       zoom: 1.10,
       center: baseCenter,
       endCenter: baseCenter + 0.04,
-      effect: concept.style === 'hard_beat_drop' ? 'punch' : undefined
+      effect: concept.style === 'hard_beat_drop' ? 'punch' : (concept.style === 'velocity_ramp' ? 'velocity_ramp' : undefined),
+      velocityCurve: concept.style === 'velocity_ramp' ? 'slow_motion' : (concept.style === 'slow_burn' ? 'ease_in_out' : 'linear')
     });
     currentTimeline += cut2Dur;
   } else {
@@ -129,7 +130,8 @@ export function planAnimeEdit(
       zoom: 1.08,
       center: baseCenter,
       endCenter: baseCenter + 0.03,
-      effect: concept.style === 'hard_beat_drop' ? 'punch' : undefined
+      effect: concept.style === 'hard_beat_drop' ? 'punch' : (concept.style === 'velocity_ramp' ? 'velocity_ramp' : undefined),
+      velocityCurve: concept.style === 'velocity_ramp' ? 'slow_motion' : (concept.style === 'slow_burn' ? 'ease_in_out' : 'linear')
     });
     currentTimeline = actualBuildDur;
   }
@@ -151,7 +153,9 @@ export function planAnimeEdit(
     zoom: concept.style === 'hard_beat_drop' ? 1.22 : 1.15,
     center: baseCenter + 0.02,
     endCenter: baseCenter,
-    effect: concept.style === 'hard_beat_drop' ? 'flash' : (concept.style === 'velocity_ramp' ? 'velocity_ramp' : 'shake')
+    effect: concept.style === 'hard_beat_drop' ? 'flash' : (concept.style === 'velocity_ramp' ? 'velocity_ramp' : 'shake'),
+    velocityCurve: concept.style === 'velocity_ramp' ? 'impact_ramp' : (concept.style === 'slow_burn' ? 'ease_in_out' : 'linear'),
+    isolateCharacter: concept.style === 'velocity_ramp' || concept.style === 'hard_beat_drop' || concept.style === 'dialogue_pause'
   });
   currentTimeline += actualImpactDur;
 

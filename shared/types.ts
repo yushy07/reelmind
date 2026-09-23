@@ -108,6 +108,8 @@ export interface AnimeShotCut {
   center: number;
   endCenter: number;
   effect?: 'flash' | 'punch' | 'shake' | 'glow' | 'velocity_ramp';
+  velocityCurve?: 'linear' | 'ease_in_out' | 'impact_ramp' | 'slow_motion';
+  isolateCharacter?: boolean;
 }
 
 export interface AnimeEditPlan {
@@ -119,6 +121,7 @@ export interface AnimeEditPlan {
   duration: number;
   fps: 30;
   bpm: number;
+  renderQuality?: 'balanced' | 'high';
   cuts: AnimeShotCut[];
   audio: {
     sourceAudioMix: number;

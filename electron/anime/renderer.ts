@@ -29,13 +29,29 @@ export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): str
       cropY = `max(0,(ih-oh)*0.3+if(lt(t,0.22),cos(t*80)*8,0))`;
     }
 
-    let filterChain = `[0:v]trim=start=${cut.sourceStart}:end=${cut.sourceEnd},setpts=PTS-STARTPTS`;
+    let ptsExpr = 'PTS-STARTPTS';
+    let temporalFilter = '';
+    if (cut.velocityCurve === 'slow_motion') {
+      ptsExpr = '1.75*(PTS-STARTPTS)';
+      temporalFilter = ',tblend=all_mode=average';
+    } else if (cut.velocityCurve === 'impact_ramp') {
+      ptsExpr = '0.65*(PTS-STARTPTS)';
+      temporalFilter = ',tblend=all_mode=average';
+    } else if (cut.velocityCurve === 'ease_in_out') {
+      ptsExpr = '0.85*(PTS-STARTPTS)';
+    }
+
+    let filterChain = `[0:v]trim=start=${cut.sourceStart}:end=${cut.sourceEnd},setpts=${ptsExpr}${temporalFilter}`;
     filterChain += `,scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=1080:1920:x='${cropX}':y='${cropY}'`;
+
+    if (cut.isolateCharacter) {
+      filterChain += `,split=2[bg_raw${i}][fg_raw${i}];[bg_raw${i}]gblur=sigma=12:steps=2[bg_blur${i}];[fg_raw${i}]vibrance=intensity=0.5,vignette=angle=PI/3.5[fg_vig${i}];[bg_blur${i}][fg_vig${i}]blend=all_mode=screen:all_opacity=0.6`;
+    }
 
     // Style effects (white flash on drop using exposure, color saturation on glow using vibrance)
     if (cut.effect === 'flash') {
       filterChain += `,exposure=exposure=1.5:enable='lt(t,0.18)'`;
-    } else if (cut.effect === 'glow') {
+    } else if (cut.effect === 'glow' && !cut.isolateCharacter) {
       filterChain += `,vibrance=intensity=0.45`;
     }
 
@@ -43,7 +59,13 @@ export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): str
     videoTrims.push(filterChain);
 
     // Audio trim for this shot cut with standardized sample rate and channels
-    audioTrims.push(`[0:a]atrim=start=${cut.sourceStart}:end=${cut.sourceEnd},asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`);
+    let audioSpeed = '';
+    if (cut.velocityCurve === 'slow_motion') {
+      audioSpeed = ',atempo=0.57';
+    } else if (cut.velocityCurve === 'impact_ramp') {
+      audioSpeed = ',atempo=1.54';
+    }
+    audioTrims.push(`[0:a]atrim=start=${cut.sourceStart}:end=${cut.sourceEnd},asetpts=PTS-STARTPTS${audioSpeed},aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`);
   });
 
   // Video stream concatenation
@@ -129,8 +151,11 @@ export async function renderAnimeAMV(
     try {
       await encode([
         '-c:v', 'h264_nvenc',
-        '-preset', 'p4',
-        '-cq', quality === 'high' ? '19' : '22',
+        '-preset', quality === 'high' ? 'p5' : 'p4',
+        '-cq', quality === 'high' ? '17' : '22',
+        '-b:v', quality === 'high' ? '14M' : '8M',
+        '-maxrate', quality === 'high' ? '18M' : '10M',
+        '-bufsize', quality === 'high' ? '25M' : '15M',
         '-pix_fmt', 'yuv420p'
       ]);
       rendered = true;

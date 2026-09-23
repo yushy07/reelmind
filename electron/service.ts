@@ -32,7 +32,7 @@ export class Service {
   async key(p:Provider){return run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(this.workers,'credentials.ps1')],{input:JSON.stringify({action:'get',provider:p})});}
   async setKey(p:Provider,key:string){await run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(this.workers,'credentials.ps1')],{input:JSON.stringify({action:'set',provider:p,key})});}
   async readiness(){const required=['ffmpeg.exe','ffprobe.exe','yt-dlp.exe','python/python.exe','models/whisper-small/model.bin','models/whisper-small/config.json','models/whisper-small/vocabulary.txt','models/whisper-small/tokenizer.json','models/face.onnx','models/speaker.onnx','fonts/NotoSans-Bold.ttf','fonts/NotoSansDevanagari-Bold.ttf','fonts/NotoSansCJKjp-Bold.otf'];const missing=[];for(const f of required)if(!await exists(path.join(this.runtime,f)))missing.push(f);return {ready:!missing.length,missing};}
-  async init(){await fs.mkdir(path.join(this.root,'work'),{recursive:true});await fs.mkdir(path.join(this.root,'outputs'),{recursive:true});const now=this.store.now();for(const j of this.store.jobs()){if(['importing','transcribing','analyzing','framing','rendering'].includes(j.stage)){this.update(j,{stage:'paused',message:'Processing was interrupted. Resume within 24 hours.',cleanupAt:Math.max(j.updatedAt,now)+DAY});}}await this.cleanup();this.pump();}
+  async init(){await fs.mkdir(path.join(this.root,'work'),{recursive:true});await fs.mkdir(path.join(this.root,'outputs'),{recursive:true});const now=this.store.now();for(const j of this.store.jobs()){if(['importing','scenes','music','transcribing','analyzing','framing','rendering'].includes(j.stage)){this.update(j,{stage:'paused',message:'Processing was interrupted. Resume within 24 hours.',cleanupAt:Math.max(j.updatedAt,now)+DAY});}}await this.cleanup();this.pump();}
   async create(request:CreateInput){
     const {pastedTranscript,...input}=request;
     if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
@@ -212,6 +212,7 @@ export class Service {
         const id=String(concept.id).padStart(2,'0');
         const file=path.join(output,`reelmind_${id}.mp4`);
         const plan=planAnimeEdit(concept,musicMap,shots,30);
+        plan.renderQuality=this.store.settings().quality;
         const planHash=fingerprint({plan,quality:this.store.settings().quality});
         const previous=job.outputs.find(r=>r.id===id);
         if(previous?.planHash===planHash&&await exists(file)){
@@ -288,6 +289,7 @@ export class Service {
       }
     }
     const plan=planAnimeEdit(concept,musicMap,shots,30);
+    plan.renderQuality=this.store.settings().quality;
     if(options.sourceAudioMix!==undefined){
       plan.audio.sourceAudioMix=Math.max(0,Math.min(1,options.sourceAudioMix));
     }

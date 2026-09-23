@@ -1208,4 +1208,167 @@ test('workers/shared/transcription.py properly frees VRAM with gc.collect and to
   assert.ok(content.includes('finally:'), 'VRAM cleanup must be guaranteed in a finally block');
 });
 
+test('buildAnimeFilterGraph applies velocity ramping speed curves and tblend temporal smoothing', () => {
+  const plan: AnimeEditPlan = {
+    version: 1,
+    conceptId: 1,
+    title: 'Velocity Test',
+    style: 'velocity_ramp',
+    category: 'action',
+    duration: 6.0,
+    fps: 30,
+    bpm: 140,
+    cuts: [
+      {
+        shotId: 1,
+        sourceStart: 2.0,
+        sourceEnd: 5.0,
+        timelineStart: 0.0,
+        timelineEnd: 3.0,
+        duration: 3.0,
+        zoom: 1.05,
+        center: 0.5,
+        endCenter: 0.5,
+        velocityCurve: 'slow_motion'
+      },
+      {
+        shotId: 2,
+        sourceStart: 5.0,
+        sourceEnd: 8.0,
+        timelineStart: 3.0,
+        timelineEnd: 6.0,
+        duration: 3.0,
+        zoom: 1.15,
+        center: 0.5,
+        endCenter: 0.5,
+        velocityCurve: 'impact_ramp'
+      }
+    ],
+    audio: {
+      sourceAudioMix: 0.5,
+      musicMix: 0.9,
+      musicOffset: 0.0
+    }
+  };
+
+  const graph = buildAnimeFilterGraph(plan, true);
+  assert.ok(graph.includes('setpts=1.75*(PTS-STARTPTS)'), 'Should apply slow motion PTS multiplier');
+  assert.ok(graph.includes('tblend=all_mode=average'), 'Should apply tblend for temporal smoothing');
+  assert.ok(graph.includes('setpts=0.65*(PTS-STARTPTS)'), 'Should apply impact ramp acceleration PTS multiplier');
+  assert.ok(graph.includes('atempo=0.57'), 'Should pitch/speed compensate slow audio');
+  assert.ok(graph.includes('atempo=1.54'), 'Should pitch/speed compensate fast audio');
+});
+
+test('buildAnimeFilterGraph applies dual-stream background blur and character isolation when isolateCharacter is true', () => {
+  const plan: AnimeEditPlan = {
+    version: 1,
+    conceptId: 1,
+    title: 'Character Isolation Test',
+    style: 'hard_beat_drop',
+    category: 'action',
+    duration: 3.0,
+    fps: 30,
+    bpm: 130,
+    cuts: [
+      {
+        shotId: 1,
+        sourceStart: 0.0,
+        sourceEnd: 3.0,
+        timelineStart: 0.0,
+        timelineEnd: 3.0,
+        duration: 3.0,
+        zoom: 1.20,
+        center: 0.5,
+        endCenter: 0.5,
+        isolateCharacter: true,
+        effect: 'flash'
+      }
+    ],
+    audio: {
+      sourceAudioMix: 0.5,
+      musicMix: 0.9,
+      musicOffset: 0.0
+    }
+  };
+
+  const graph = buildAnimeFilterGraph(plan, false);
+  assert.ok(graph.includes('split=2[bg_raw0][fg_raw0]'), 'Should split stream for dual-layer composition');
+  assert.ok(graph.includes('gblur=sigma=12:steps=2'), 'Should apply gaussian blur to background layer');
+  assert.ok(graph.includes('vignette=angle=PI/3.5'), 'Should apply vignette focus to character foreground layer');
+  assert.ok(graph.includes('blend=all_mode=screen:all_opacity=0.6'), 'Should blend background and foreground streams');
+});
+
+test('interrupted anime job in scenes or music stage transitions to paused in service.init and can be resumed', async () => {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'reelmind-anime-recover-'));
+  const store = new Store(path.join(tmpRoot, 'db.sqlite'));
+  const service = new Service(tmpRoot, 'unused', 'unused', store, () => {}, () => {});
+  service.stopping = true;
+
+  try {
+    const jobScenesId = randomUUID();
+    const jobMusicId = randomUUID();
+    const now = Date.now();
+
+    const jobScenes: Job = {
+      id: jobScenesId,
+      studio: 'anime',
+      title: 'Anime in Scenes Detection',
+      input: { kind: 'local', value: 'ep.mp4', musicPath: 'm.mp3', language: 'ja' },
+      stage: 'scenes',
+      checkpoint: 'scenes',
+      progress: 25,
+      message: 'Detecting shots',
+      createdAt: now,
+      updatedAt: now,
+      outputs: [],
+      provider: 'Local'
+    };
+
+    const jobMusic: Job = {
+      id: jobMusicId,
+      studio: 'anime',
+      title: 'Anime in Music Analysis',
+      input: { kind: 'local', value: 'ep.mp4', musicPath: 'm.mp3', language: 'ja' },
+      stage: 'music',
+      checkpoint: 'music',
+      progress: 55,
+      message: 'Mapping music beats',
+      createdAt: now,
+      updatedAt: now,
+      outputs: [],
+      provider: 'Local'
+    };
+
+    store.put(jobScenes);
+    store.put(jobMusic);
+
+    // Call service.init() simulating application startup after unexpected crash
+    await service.init();
+
+    const recoveredScenes = store.get(jobScenesId)!;
+    const recoveredMusic = store.get(jobMusicId)!;
+
+    assert.equal(recoveredScenes.stage, 'paused');
+    assert.ok(recoveredScenes.message.includes('Processing was interrupted'));
+    assert.ok(recoveredScenes.cleanupAt && recoveredScenes.cleanupAt > now);
+
+    assert.equal(recoveredMusic.stage, 'paused');
+    assert.ok(recoveredMusic.message.includes('Processing was interrupted'));
+    assert.ok(recoveredMusic.cleanupAt && recoveredMusic.cleanupAt > now);
+
+    // Test resume
+    await service.action(jobScenesId, 'resume');
+    assert.equal(store.get(jobScenesId)?.stage, 'queued');
+    assert.equal(store.get(jobScenesId)?.checkpoint, 'scenes');
+
+    await service.action(jobMusicId, 'resume');
+    assert.equal(store.get(jobMusicId)?.stage, 'queued');
+    assert.equal(store.get(jobMusicId)?.checkpoint, 'music');
+  } finally {
+    store.db.close();
+    await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+
 
