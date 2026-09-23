@@ -10,7 +10,7 @@ import { ModelManager, TURBO } from './models';
 import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
-import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis } from '../shared/types';
+import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate } from '../shared/types';
 import { parsePastedTranscript } from './pasted-transcript';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -186,13 +186,21 @@ export class Service {
       const transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments),async()=>{
         const transcribeArgs=[path.join(this.workers,'anime_worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models'),'--language',lang];
         if(this.renderHardware.cudaSpeechCandidate)transcribeArgs.push('--gpu');
-        await run(path.join(this.runtime,'python/python.exe'),transcribeArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:74+p.progress*24,message:p.message});}catch{}}});
+        await run(path.join(this.runtime,'python/python.exe'),transcribeArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:74+p.progress*12,message:p.message});}catch{}}});
         return JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       },fingerprint({audio:await hash(audio),language:lang,v:1}));
+      phase('analyzing',86,'Analyzing motion, audio dynamics and discovering candidate moments');
+      const candidatesFile=path.join(work,'candidates.json');
+      const candidates=await this.checkpoint<AnimeCandidate[]>(candidatesFile,d=>Array.isArray(d)&&d.length>0,async()=>{
+        const candidateArgs=[path.join(this.workers,'anime_worker.py'),'score-candidates','--source',episodeSource,'--shots',shotsFile,'--audio',audio,'--transcript',transcriptFile,'--models',path.join(this.runtime,'models'),'--output',candidatesFile];
+        if(this.renderHardware.cudaSpeechCandidate)candidateArgs.push('--gpu');
+        await run(path.join(this.runtime,'python/python.exe'),candidateArgs,{signal,progress:line=>{try{const p=JSON.parse(line);if(Number.isFinite(p.progress))this.update(job,{progress:86+p.progress*13,message:p.message});}catch{}}});
+        return JSON.parse(await fs.readFile(candidatesFile,'utf8'));
+      },fingerprint({shots:await hash(shotsFile),audio:await hash(audio),transcript:await hash(transcriptFile),v:1}));
       const episodeFile=path.join(work,'episode.json');
-      const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm};
+      const analysis:AnimeEpisodeAnalysis={version:1,metadata:{duration:media.duration,width:media.width,height:media.height,fps:media.fps,videoCodec:media.videoCodec,audioCodec:media.audioCodec},language:lang,shotCount:shots.length,dialogueCount:transcript.segments.length,musicBpm:musicMap.bpm,candidatesCount:candidates.length,candidates:candidates.slice(0,30)};
       await atomicJSON(episodeFile,analysis);await this.seal(episodeFile);
-      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${musicMap.bpm} BPM, ${transcript.segments.length} dialogue segments`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang}});
+      this.update(job,{stage:'completed',progress:100,message:`Analysis complete · ${shots.length} shots, ${candidates.length} candidate moments, ${musicMap.bpm} BPM`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30)}});
       this.notify(job);
     }catch(error){
       this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});

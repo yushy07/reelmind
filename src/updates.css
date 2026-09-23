@@ -157,3 +157,21 @@ textarea:focus-visible,summary:focus-visible{outline:2px solid #d6b8ff;outline-o
 .stat-box{padding:14px;background:#171320;border:1px solid #3d314c;border-radius:9px;text-align:center}
 .stat-box strong{display:block;font-size:18px;color:#e8d7ff;margin-bottom:4px}
 .stat-box small{font-size:11px;color:#9d90ac;text-transform:uppercase;letter-spacing:.04em}
+.candidate-moments-section{margin-top:22px;border-top:1px solid #3d314c;padding-top:18px}
+.candidate-heading{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.candidate-heading h4{margin:0;font-size:14px;color:#f3ecf8}
+.candidate-heading small{color:#9d90ad;font-size:11px}
+.candidate-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.candidate-card{background:#171320;border:1px solid #3d314c;border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:7px;transition:border-color .18s ease}
+.candidate-card:hover{border-color:#735594}
+.candidate-header{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.candidate-tag{font-size:9px;font-weight:700;letter-spacing:.05em;padding:3px 6px;border-radius:4px;text-transform:uppercase}
+.candidate-tag.action{background:#421b28;color:#ff96b0;border:1px solid #6b2f42}
+.candidate-tag.emotional{background:#3b1e4a;color:#dda2ff;border:1px solid #5f3475}
+.candidate-tag.dialogue{background:#1c2d3e;color:#8cc8ff;border:1px solid #2f4d6d}
+.candidate-tag.cinematic{background:#232d25;color:#a2dfb1;border:1px solid #384f3c}
+.candidate-score{font-size:10px;color:#bcaecb;font-weight:600}
+.candidate-timing{display:flex;align-items:baseline;gap:6px}
+.candidate-timing strong{color:#e6daf1;font-size:13px}
+.candidate-timing small{color:#8b7f99;font-size:10px}
+.candidate-dialogue{margin:0;font-size:11px;color:#a899b8;font-style:italic;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}

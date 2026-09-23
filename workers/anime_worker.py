@@ -150,10 +150,430 @@ def transcribe(args):
     )
     save(args.output, data)
 
+def get_face_detector(models_dir=None):
+    """Retrieve anime face detector if available, otherwise fallback to OpenCV YuNet."""
+    try:
+        import anime_face_detector
+        detector = anime_face_detector.create_detector('yolov3')
+        return ('anime_face_detector', detector)
+    except Exception:
+        pass
+    if models_dir:
+        import cv2
+        model_path = Path(models_dir) / 'face.onnx'
+        if model_path.exists():
+            try:
+                detector = cv2.FaceDetectorYN.create(str(model_path), '', (320, 180), 0.35, 0.3, 10)
+                return ('yunet', detector)
+            except Exception:
+                pass
+    return (None, None)
+
+def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
+    """Scan shots with OpenCV: frame differencing, motion delta, brightness, sharpness, and anime face detection."""
+    import cv2
+    import numpy as np
+
+    cap = cv2.VideoCapture(source_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video file: {source_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    target_w, target_h = 320, 180
+
+    det_type, detector = get_face_detector(models_dir)
+    if det_type == 'yunet' and detector is not None:
+        detector.setInputSize((target_w, target_h))
+
+    results = []
+    num_shots = len(shots)
+    sample_interval_sec = 0.25
+    sample_step_frames = max(1, int(fps * sample_interval_sec))
+
+    for shot_idx, shot in enumerate(shots):
+        start_sec = shot['start']
+        end_sec = shot['end']
+        dur = shot['duration']
+
+        start_f = max(0, int(start_sec * fps))
+        end_f = min(total_frames, int(end_sec * fps)) if total_frames > 0 else int(end_sec * fps)
+
+        prev_gray = None
+        motion_samples = []
+        sharpness_samples = []
+        brightness_samples = []
+
+        if end_f <= start_f:
+            frame_indices = [start_f]
+        else:
+            frame_indices = list(range(start_f, end_f, sample_step_frames))
+            if not frame_indices:
+                frame_indices = [start_f]
+            if len(frame_indices) > 20:
+                indices = np.linspace(0, len(frame_indices) - 1, 20).astype(int)
+                frame_indices = [frame_indices[i] for i in indices]
+
+        best_face_ratio = 0.0
+        best_face_conf = 0.0
+        face_count = 0
+
+        face_check_frames = set()
+        if len(frame_indices) >= 2:
+            face_check_frames.add(frame_indices[len(frame_indices) // 3])
+            face_check_frames.add(frame_indices[(len(frame_indices) * 2) // 3])
+        elif frame_indices:
+            face_check_frames.add(frame_indices[0])
+
+        for f_idx in frame_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                continue
+
+            small = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+            sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+            sharpness_samples.append(float(sharpness))
+            brightness_samples.append(float(np.mean(gray) / 255.0))
+
+            t_sec = f_idx / fps
+            if prev_gray is not None:
+                diff = cv2.absdiff(gray, prev_gray)
+                mean_diff = float(np.mean(diff) / 255.0)
+                std_diff = float(np.std(diff) / 255.0)
+                motion_val = float(mean_diff + 0.5 * std_diff)
+                motion_samples.append((t_sec, motion_val))
+            prev_gray = gray
+
+            if f_idx in face_check_frames and detector is not None:
+                try:
+                    if det_type == 'anime_face_detector':
+                        preds = detector(small)
+                        if preds and len(preds) > 0:
+                            face_count = max(face_count, len(preds))
+                            for p in preds:
+                                bbox = p.get('bbox', [0, 0, 0, 0, 0])
+                                w = max(0, bbox[2] - bbox[0])
+                                h = max(0, bbox[3] - bbox[1])
+                                ratio = (w * h) / (target_w * target_h)
+                                best_face_ratio = max(best_face_ratio, float(ratio))
+                                best_face_conf = max(best_face_conf, float(bbox[4] if len(bbox) > 4 else 0.8))
+                    elif det_type == 'yunet':
+                        res = detector.detect(small)
+                        if res[1] is not None and len(res[1]) > 0:
+                            detected_faces = res[1]
+                            face_count = max(face_count, len(detected_faces))
+                            for f in detected_faces:
+                                w, h, conf = f[2], f[3], f[14]
+                                ratio = (w * h) / (target_w * target_h)
+                                best_face_ratio = max(best_face_ratio, float(ratio))
+                                best_face_conf = max(best_face_conf, float(conf))
+                except Exception:
+                    pass
+
+        if motion_samples:
+            peak_sample = max(motion_samples, key=lambda x: x[1])
+            motion_peak_time = round(peak_sample[0], 3)
+            motion_peak = round(peak_sample[1], 4)
+            motion_avg = round(float(np.mean([m[1] for m in motion_samples])), 4)
+        else:
+            motion_peak_time = round(start_sec + dur * 0.4, 3)
+            motion_peak = 0.0
+            motion_avg = 0.0
+
+        sharpness_avg = round(float(np.mean(sharpness_samples)), 2) if sharpness_samples else 0.0
+        brightness_avg = round(float(np.mean(brightness_samples)), 4) if brightness_samples else 0.5
+        face_score = round(min(1.0, best_face_ratio * 4.0 * 0.6 + best_face_conf * 0.4), 4) if face_count > 0 else 0.0
+
+        results.append({
+            'shot_id': shot['id'],
+            'motion_peak': motion_peak,
+            'motion_peak_time': motion_peak_time,
+            'motion_avg': motion_avg,
+            'sharpness_avg': sharpness_avg,
+            'brightness_avg': brightness_avg,
+            'face_count': face_count,
+            'face_score': face_score,
+            'max_face_ratio': round(best_face_ratio, 4)
+        })
+
+        if emit and (shot_idx % 10 == 0 or shot_idx == num_shots - 1):
+            pct = 0.05 + 0.50 * ((shot_idx + 1) / num_shots)
+            emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots}')
+
+    cap.release()
+    return results
+
+def analyze_audio_signals(audio_path, shots):
+    """Compute RMS energy and onset transient spikes across audio for each shot."""
+    import soundfile as sf
+    import numpy as np
+
+    data, sr = sf.read(audio_path, dtype='float32')
+    if data.ndim > 1:
+        data = np.mean(data, axis=1)
+
+    hop = int(sr * 0.05)
+    if hop <= 0:
+        hop = 1024
+
+    num_frames = len(data) // hop
+    if num_frames == 0:
+        return [{'shot_id': s['id'], 'rms_mean': 0.0, 'rms_peak': 0.0, 'transient_peak': 0.0, 'transient_time': round(s['start'] + s['duration'] * 0.4, 3)} for s in shots]
+
+    rms = np.zeros(num_frames, dtype=np.float32)
+    for i in range(num_frames):
+        chunk = data[i * hop : (i + 1) * hop]
+        rms[i] = np.sqrt(np.mean(chunk ** 2))
+
+    diff_rms = np.diff(rms, prepend=rms[0])
+    transients = np.maximum(0.0, diff_rms)
+
+    max_rms = float(np.percentile(rms, 98)) if len(rms) > 0 and float(np.percentile(rms, 98)) > 1e-4 else 1.0
+    max_trans = float(np.percentile(transients, 98)) if len(transients) > 0 and float(np.percentile(transients, 98)) > 1e-4 else 1.0
+    norm_rms = np.clip(rms / max_rms, 0.0, 1.0)
+    norm_trans = np.clip(transients / max_trans, 0.0, 1.0)
+
+    shot_signals = []
+    for shot in shots:
+        start_frame = int((shot['start'] * sr) / hop)
+        end_frame = int((shot['end'] * sr) / hop)
+        if start_frame >= len(norm_rms):
+            start_frame = max(0, len(norm_rms) - 1)
+        if end_frame <= start_frame:
+            end_frame = min(len(norm_rms), start_frame + 1)
+
+        shot_rms = norm_rms[start_frame:end_frame]
+        shot_trans = norm_trans[start_frame:end_frame]
+
+        rms_mean = float(np.mean(shot_rms)) if len(shot_rms) > 0 else 0.0
+        rms_peak = float(np.max(shot_rms)) if len(shot_rms) > 0 else 0.0
+
+        if len(shot_trans) > 0:
+            peak_idx = int(np.argmax(shot_trans))
+            trans_peak = float(shot_trans[peak_idx])
+            trans_time = round(shot['start'] + (peak_idx * hop) / sr, 3)
+        else:
+            trans_peak = 0.0
+            trans_time = round(shot['start'] + shot['duration'] * 0.4, 3)
+
+        shot_signals.append({
+            'shot_id': shot['id'],
+            'rms_mean': round(rms_mean, 4),
+            'rms_peak': round(rms_peak, 4),
+            'transient_peak': round(trans_peak, 4),
+            'transient_time': trans_time
+        })
+    return shot_signals
+
+def score_candidates(args):
+    """Local Intelligence: OpenCV motion, anime face detection, audio energy/transient analysis,
+    multi-signal impact scoring, and candidate diversity ranking (~250 shots -> ~20-30 candidate moments).
+    """
+    source_path = args.source or args.input
+    shots_path = args.shots
+    audio_path = args.audio
+    transcript_path = args.transcript
+    models_dir = args.models
+    output_path = args.output
+
+    if not shots_path or not Path(shots_path).exists():
+        emit(progress=1.0, message="No shots file provided for candidate scoring")
+        save(output_path, [])
+        return
+
+    shots = json.loads(Path(shots_path).read_text(encoding='utf-8'))
+    if not shots:
+        emit(progress=1.0, message="Empty shots list; zero candidates found")
+        save(output_path, [])
+        return
+
+    emit(progress=0.05, message=f"Starting local visual and motion analysis across {len(shots)} shots")
+    motion_and_faces = analyze_motion_and_faces(source_path, shots, models_dir=models_dir, emit=emit)
+
+    emit(progress=0.60, message="Analyzing audio energy and transient spikes")
+    audio_signals = analyze_audio_signals(audio_path, shots) if audio_path and Path(audio_path).exists() else []
+
+    audio_by_id = {a['shot_id']: a for a in audio_signals}
+    motion_by_id = {m['shot_id']: m for m in motion_and_faces}
+
+    dialogue_by_shot = {}
+    if transcript_path and Path(transcript_path).exists():
+        try:
+            transcript_data = json.loads(Path(transcript_path).read_text(encoding='utf-8'))
+            segments = transcript_data.get('segments', [])
+            for shot in shots:
+                s_start = shot['start']
+                s_end = shot['end']
+                matching_texts = []
+                for seg in segments:
+                    if seg.get('start', 0) < s_end and seg.get('end', 0) > s_start:
+                        text = seg.get('text', '').strip()
+                        if text:
+                            matching_texts.append(text)
+                dialogue_by_shot[shot['id']] = ' '.join(matching_texts)
+        except Exception:
+            pass
+
+    emit(progress=0.75, message="Computing multi-signal impact scores and finding peak impact frames")
+
+    if getattr(args, 'motion_output', None):
+        save(args.motion_output, motion_and_faces)
+    if getattr(args, 'audio_output', None):
+        save(args.audio_output, audio_signals)
+
+    scored_candidates = []
+    for shot in shots:
+        s_id = shot['id']
+        start_sec = shot['start']
+        end_sec = shot['end']
+        duration = shot['duration']
+
+        if duration < 0.6:
+            continue
+
+        m_data = motion_by_id.get(s_id, {})
+        a_data = audio_by_id.get(s_id, {})
+
+        motion_peak = m_data.get('motion_peak', 0.0)
+        motion_peak_time = m_data.get('motion_peak_time', round(start_sec + duration * 0.4, 3))
+        motion_avg = m_data.get('motion_avg', 0.0)
+        sharpness_avg = m_data.get('sharpness_avg', 0.0)
+        brightness_avg = m_data.get('brightness_avg', 0.5)
+        face_count = m_data.get('face_count', 0)
+        face_score = m_data.get('face_score', 0.0)
+        max_face_ratio = m_data.get('max_face_ratio', 0.0)
+
+        if brightness_avg < 0.03:
+            continue
+
+        rms_mean = a_data.get('rms_mean', 0.0)
+        rms_peak = a_data.get('rms_peak', 0.0)
+        transient_peak = a_data.get('transient_peak', 0.0)
+        transient_time = a_data.get('transient_time', round(start_sec + duration * 0.4, 3))
+
+        dialogue_text = dialogue_by_shot.get(s_id, '')
+        has_dialogue = len(dialogue_text) > 0
+
+        norm_motion_spike = min(1.0, motion_peak / 0.30) if motion_peak else 0.0
+        norm_transient = min(1.0, transient_peak / 0.35) if transient_peak else 0.0
+        norm_frame_diff = min(1.0, motion_avg / 0.12) if motion_avg else 0.0
+        norm_face = min(1.0, face_score)
+        norm_audio_energy = min(1.0, rms_peak / 0.45) if rms_peak else 0.0
+
+        impact_score = round(
+            0.35 * norm_motion_spike +
+            0.25 * norm_transient +
+            0.20 * norm_frame_diff +
+            0.15 * norm_face +
+            0.05 * norm_audio_energy,
+            4
+        )
+
+        if norm_motion_spike + norm_transient > 0.01:
+            impact_time = round(
+                (norm_motion_spike * motion_peak_time + norm_transient * transient_time) / (norm_motion_spike + norm_transient),
+                3
+            )
+        else:
+            impact_time = round(start_sec + duration * 0.4, 3)
+
+        impact_time = max(start_sec, min(end_sec, impact_time))
+
+        # For long shots (> 10.0s), center a 4.5s edit window around the impact moment
+        if duration > 10.0:
+            c_start = max(start_sec, round(impact_time - 2.0, 3))
+            c_end = min(end_sec, round(c_start + 4.5, 3))
+            c_dur = round(c_end - c_start, 3)
+        else:
+            c_start = start_sec
+            c_end = end_sec
+            c_dur = duration
+
+        if norm_motion_spike >= 0.45 and norm_transient >= 0.35:
+            category = 'action'
+            cat_bonus = 0.25 * norm_motion_spike + 0.15 * norm_transient
+        elif norm_face >= 0.30 and (has_dialogue or norm_motion_spike < 0.40):
+            category = 'emotional'
+            cat_bonus = 0.30 * norm_face + (0.10 if has_dialogue else 0.0)
+        elif has_dialogue:
+            category = 'dialogue'
+            cat_bonus = 0.20 + 0.10 * norm_audio_energy
+        else:
+            category = 'cinematic'
+            norm_sharpness = min(1.0, sharpness_avg / 250.0) if sharpness_avg else 0.0
+            cat_bonus = 0.20 * norm_sharpness + 0.10 * (1.0 - norm_motion_spike)
+
+        total_score = round(0.65 * impact_score + 0.35 * cat_bonus, 4)
+
+        scored_candidates.append({
+            'shotId': s_id,
+            'start': round(c_start, 3),
+            'end': round(c_end, 3),
+            'duration': round(c_dur, 3),
+            'impactTime': round(impact_time, 3),
+            'motionScore': round(norm_motion_spike, 4),
+            'faceScore': round(norm_face, 4),
+            'audioEnergyScore': round(norm_audio_energy, 4),
+            'transientScore': round(norm_transient, 4),
+            'impactScore': round(impact_score, 4),
+            'totalScore': round(total_score, 4),
+            'category': category,
+            'hasDialogue': has_dialogue,
+            'dialogueText': dialogue_text[:120] if dialogue_text else '',
+            'facesCount': face_count,
+            'maxFaceRatio': round(max_face_ratio, 4),
+            'motionPeak': round(motion_peak, 4),
+            'transientPeak': round(transient_peak, 4)
+        })
+
+    emit(progress=0.90, message=f"Ranking and diversity filtering across {len(scored_candidates)} candidates")
+
+    scored_candidates.sort(key=lambda c: c['totalScore'], reverse=True)
+
+    selected = []
+    seen_intervals = []
+
+    for cand in scored_candidates:
+        cand_start = cand['start']
+        cand_end = cand['end']
+        cand_cat = cand['category']
+
+        suppressed = False
+        for (s_start, s_end, s_cat) in seen_intervals:
+            if abs(cand_start - s_start) < 2.0 or (cand_start < s_end and cand_end > s_start):
+                if cand_cat == s_cat or len(selected) >= 20:
+                    suppressed = True
+                    break
+
+        if not suppressed or len(selected) < 15:
+            selected.append(cand)
+            seen_intervals.append((cand_start, cand_end, cand_cat))
+
+        if len(selected) >= 30:
+            break
+
+    if len(selected) < 20 and len(scored_candidates) > len(selected):
+        selected_ids = {c['shotId'] for c in selected}
+        for cand in scored_candidates:
+            if cand['shotId'] not in selected_ids:
+                selected.append(cand)
+                selected_ids.add(cand['shotId'])
+            if len(selected) >= 25:
+                break
+
+    for rank, cand in enumerate(selected):
+        cand['id'] = rank + 1
+
+    emit(progress=1.0, message=f"Discovered {len(selected)} ranked candidate moments")
+    save(output_path, selected)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Anime Studio Worker')
-    parser.add_argument('command', choices=['detect-scenes', 'analyze-music', 'transcribe'])
-    for key in ['input', 'output', 'models', 'model-path', 'language']:
+    parser.add_argument('command', choices=['detect-scenes', 'analyze-music', 'transcribe', 'score-candidates'])
+    for key in ['input', 'source', 'shots', 'audio', 'transcript', 'output', 'models', 'model-path', 'language', 'motion-output', 'audio-output']:
         parser.add_argument('--' + key)
     parser.add_argument('--gpu', action='store_true')
     args = parser.parse_args()
@@ -163,6 +583,7 @@ if __name__ == '__main__':
             'detect-scenes': detect_scenes,
             'analyze-music': analyze_music,
             'transcribe': transcribe,
+            'score-candidates': score_candidates,
         }
         commands[args.command](args)
     except Exception as error:

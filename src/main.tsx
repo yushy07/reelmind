@@ -101,13 +101,29 @@ function Project({job,busy,onAction,onSave,back}:{job:Job;busy:boolean;onAction:
     {job.error&&<div className="alert" role="alert"><AlertCircle size={18}/><span>{job.error}</span></div>}
     {job.cleanupAt&&!job.workingDeleted&&<div className={'recovery '+(hours<2?'urgent':'')}><HardDrive size={19}/><p>{done?'Working files':'Recovery files'} expire in <strong>{hours<1?Math.ceil(hours*60)+' minutes':Math.ceil(hours)+' hours'}</strong>. {done?'Unsaved finished Reels will remain available.':'Resume before this countdown ends.'}</p></div>}
     {isAnime&&done&&job.animeAnalysis&&<div className="anime-analysis-card">
-      <div className="analysis-header"><Sparkles size={24}/><div><h3>Anime Analysis Database Ready</h3><p>Milestone 1 Foundation: Shot boundaries indexed, music beat grid constructed, and dialogue transcribed.</p></div></div>
+      <div className="analysis-header"><Sparkles size={24}/><div><h3>Anime Intelligence & Candidates Ready</h3><p>Local intelligence complete: Motion analyzed, audio dynamics mapped, impact spikes calculated, and candidate moments ranked.</p></div></div>
       <div className="analysis-stats">
         <div className="stat-box"><strong>{job.animeAnalysis.shotCount}</strong><small>Shots Indexed</small></div>
+        <div className="stat-box"><strong>{job.animeAnalysis.candidatesCount||0}</strong><small>Ranked Candidates</small></div>
         <div className="stat-box"><strong>{job.animeAnalysis.bpm} BPM</strong><small>Music Tempo</small></div>
-        <div className="stat-box"><strong>{job.animeAnalysis.beatsCount}</strong><small>Beats Detected</small></div>
         <div className="stat-box"><strong>{job.animeAnalysis.language==='ja'?'Japanese':'English'}</strong><small>Dialogue Language</small></div>
       </div>
+      {!!job.animeAnalysis.candidates?.length&&<div className="candidate-moments-section">
+        <div className="candidate-heading"><h4>Ranked Candidate Moments</h4><small>Top {job.animeAnalysis.candidates.length} moments filtered for AMV edit alignment</small></div>
+        <div className="candidate-grid">
+          {job.animeAnalysis.candidates.slice(0, 12).map(c => <div key={c.id} className="candidate-card">
+            <div className="candidate-header">
+              <span className={'candidate-tag ' + c.category}>{c.category.toUpperCase()}</span>
+              <span className="candidate-score">{Math.round(c.totalScore * 100)}% Match</span>
+            </div>
+            <div className="candidate-timing">
+              <strong>{c.duration}s</strong>
+              <small>{c.start}s → {c.end}s (Hit: {c.impactTime}s)</small>
+            </div>
+            {c.hasDialogue&&c.dialogueText&&<p className="candidate-dialogue">"{c.dialogueText}"</p>}
+          </div>)}
+        </div>
+      </div>}
     </div>}
     {job.outputs.length>0?<section className="results-section"><div className="results-heading"><div><span className="eyebrow">{done?'RENDER COMPLETE':'FINISHED SO FAR'}</span><h2>{job.outputs.length} {job.outputs.length===1?'Reel':'Reels'} ready</h2><p>{savedCount===job.outputs.length?'All Reels are saved in your chosen folder.':`${savedCount} saved · ${job.outputs.length-savedCount} ready to save`}</p></div>{done&&<button className="primary" disabled={busy||savedCount===job.outputs.length} onClick={onSave}>{busy?<LoaderCircle className="spin" size={17}/>:<FolderDown size={17}/>} {savedCount===job.outputs.length?'All Reels saved':'Save Reels'}</button>}</div><div className="reel-grid">{job.outputs.map((reel,i)=><article className="output-card" key={reel.id}><video controls preload="metadata" src={`reel://output/${job.id}/${reel.id}`} aria-label={`Reel ${i+1}: ${reel.title}`}/><div><span className="eyebrow">REEL {String(i+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span><h3>{reel.title}</h3><small>{reel.savedPath?<><CheckCircle2 size={13}/>Saved to your folder</>:'Ready to save'}</small></div></article>)}</div><p className="privacy"><FolderDown size={15}/>Choose a folder outside REELMIND. Files are verified before internal copies are removed.</p></section>:done&&!isAnime&&<div className="result-empty"><Clapperboard size={24}/><h2>No Reels in this project</h2><p>{job.message}</p></div>}
     <button className="danger-text" disabled={busy} onClick={()=>onAction('delete')}><Trash2 size={15}/>Delete project</button>

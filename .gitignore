@@ -53,3 +53,8 @@ coverage/
 Thumbs.db
 Desktop.ini
 phase.txt
+*.tmp
+*.part*
+*.sha256
+.vscode/
+.idea/

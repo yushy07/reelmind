@@ -51,6 +51,30 @@ export interface AnimeEpisodeMetadata {
   audioCodec: string;
 }
 
+export type AnimeCandidateCategory = 'action' | 'emotional' | 'dialogue' | 'cinematic';
+
+export interface AnimeCandidate {
+  id: number;
+  shotId: number;
+  start: number;
+  end: number;
+  duration: number;
+  impactTime: number;
+  motionScore: number;
+  faceScore: number;
+  audioEnergyScore: number;
+  transientScore: number;
+  impactScore: number;
+  totalScore: number;
+  category: AnimeCandidateCategory;
+  hasDialogue: boolean;
+  dialogueText?: string;
+  facesCount: number;
+  maxFaceRatio: number;
+  motionPeak?: number;
+  transientPeak?: number;
+}
+
 export interface AnimeEpisodeAnalysis {
   version: 1;
   metadata: AnimeEpisodeMetadata;
@@ -58,6 +82,8 @@ export interface AnimeEpisodeAnalysis {
   shotCount: number;
   dialogueCount: number;
   musicBpm?: number;
+  candidatesCount?: number;
+  candidates?: AnimeCandidate[];
 }
 
 export interface AnimeCreateInput {
@@ -98,6 +124,8 @@ export interface Job {
     bpm?: number;
     beatsCount?: number;
     language?: AnimeLanguage;
+    candidatesCount?: number;
+    candidates?: AnimeCandidate[];
   };
 }
 
