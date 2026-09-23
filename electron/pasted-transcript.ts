@@ -21,7 +21,12 @@ function decodeEntity(entity:string,code:string){
   }
   return htmlEntities[code.toLowerCase()]??entity;
 }
-function clean(value:string){return value.replace(/&(#(?:x[0-9a-f]+|[0-9]+)|[a-z][a-z0-9]+);/gi,(entity,code:string)=>decodeEntity(entity,code)).replace(/<[^>]*>/g,'').replace(/\s+/gu,' ').trim();}
+function clean(value:string){
+  let sanitized=value.replace(/&(#(?:x[0-9a-f]+|[0-9]+)|[a-z][a-z0-9]+);/gi,(entity,code:string)=>decodeEntity(entity,code));
+  let previous:string;
+  do{previous=sanitized;sanitized=sanitized.replace(/<[^>]*>/g,'');}while(sanitized!==previous);
+  return sanitized.replace(/\s+/gu,' ').trim();
+}
 function language(value:string){
   if(/[\u3040-\u30ff\u3400-\u9fff]/u.test(value))return 'ja';
   if(/[\u0900-\u097f]/u.test(value))return 'hi';

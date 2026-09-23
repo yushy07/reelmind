@@ -13,3 +13,9 @@ test('removes markup even when its angle brackets are encoded',()=>{
   const text=transcript.segments.map(segment=>segment.text).join(' ');
   assert.equal(text,'alert ( 1 ) safe');
 });
+
+test('repeats markup removal when one tag exposes another',()=>{
+  const transcript=parsePastedTranscript('1\n00:00:00,000 --> 00:00:03,000\n&lt;outer &lt;script&gt;evil&lt;/script&gt;',3);
+  const text=transcript.segments.map(segment=>segment.text).join(' ');
+  assert.equal(text,'evil');
+});
