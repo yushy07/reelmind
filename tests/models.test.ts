@@ -23,3 +23,7 @@ test('bad hashes and incorrect ranges never mark a model ready',()=>fixture(asyn
 test('cancellation preserves staging without promoting it',()=>fixture(async root=>{
  const controller=new AbortController();const manager=new ModelManager(root,()=>{},async()=>{controller.abort();return new Response(content);},spec);await assert.rejects(manager.download(controller.signal));assert.equal(manager.state.ready,false);assert.equal(await fs.stat(manager.directory()).catch(()=>null),null);
 }));
+test('expired partial downloads are removed but installed models survive',()=>fixture(async root=>{
+ const manager=new ModelManager(root,()=>{},async()=>new Response(content),spec);await manager.download(new AbortController().signal);
+ await fs.mkdir(manager.staging(),{recursive:true});await fs.writeFile(path.join(manager.staging(),'model.bin.part'),'partial');const past=new Date(Date.now()-25*3600000);await fs.utimes(manager.staging(),past,past);await manager.cleanup();assert.equal(await fs.stat(manager.staging()).catch(()=>null),null);assert.equal(await manager.valid(manager.directory()),true);
+}));

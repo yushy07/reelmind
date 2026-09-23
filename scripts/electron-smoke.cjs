@@ -23,6 +23,10 @@ app.on('browser-window-created',(_event,window)=>{
       await fs.writeFile('.test-data/import.png',(await window.webContents.capturePage()).toPNG());
       await window.webContents.executeJavaScript("Array.from(document.querySelectorAll('nav button')).find(b=>b.innerText.includes('Settings')).click()");
       await new Promise(r=>setTimeout(r,200));
+      const settingsText=await window.webContents.executeJavaScript('document.body.innerText');
+      if(!settingsText.includes('Local transcription')||!settingsText.includes('Whisper small')||!state.turbo)throw new Error('Transcription settings missing');
+      await window.webContents.executeJavaScript("Array.from(document.querySelectorAll('h2')).find(h=>h.innerText==='Local transcription').scrollIntoView({block:'center',behavior:'instant'})");
+      await new Promise(r=>setTimeout(r,350));
       await fs.writeFile('.test-data/settings.png',(await window.webContents.capturePage()).toPNG());
       console.log(JSON.stringify({desktopBridge:true,home:true,import:true,settings:true,runtimeReady:state.runtime.ready,keysPresent:state.keys,geminiBillingConfirmed:state.settings.geminiFreeConfirmed,hardware:state.hardware}));
       app.quit();

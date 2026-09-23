@@ -17,7 +17,7 @@ const keyPresence:Record<Provider,boolean>={gemini:false,openrouter:false};
 let hardware='Checking hardware…';
 function changed(){if(window&&!window.isDestroyed()){
   const active=service?.store.jobs().find(job=>['importing','transcribing','framing','analyzing','rendering'].includes(job.stage));
-  window.setProgressBar(active?Math.max(.01,Math.min(.99,active.progress/100)):-1);
+  window.setProgressBar(active?Math.max(.01,Math.min(.99,active.progress/100)):service?.models.state.running?Math.max(.01,Math.min(.99,service.models.state.downloaded/service.models.state.total)):-1);
   window.webContents.send('changed');
 }}
 if(!app.requestSingleInstanceLock())app.quit();
@@ -55,11 +55,12 @@ app.whenReady().then(async()=>{
     void run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts/setup-runtime.ps1')],{progress:line=>{setup.message=line.slice(-200);changed();}}).then(()=>{setup.message='Local engine ready';}).catch(e=>{setup.error=e.message;}).finally(()=>{setup.running=false;changed();});
   });
   await service.models.init();
+  await service.models.cleanup(store.now());
   handle('turbo',async action=>{z.enum(['download','cancel']).parse(action);if(action==='download')service.models.start();else service.models.cancel();});
   await service.init();
   if(!selfTest)for(const p of ['gemini','openrouter'] as const)keyPresence[p]=!!await service.key(p).catch(()=>'');
   try{const value=await run('nvidia-smi',['--query-gpu=name,memory.total','--format=csv,noheader,nounits']);const fields=value.trim().split(',');const vram=Number(fields.at(-1)?.trim()||0);service.configureHardware(vram);hardware=`${fields.slice(0,-1).join(',').trim()} · ${Math.round(vram/1024)} GB VRAM · ${vram>=2048?'NVENC enabled':'CPU encoding'}`;}catch{hardware='CPU encoding available · NVIDIA GPU not detected';}changed();
-  setInterval(()=>void service.cleanup().catch(()=>{}),60_000).unref();
+  setInterval(()=>{void service.cleanup().catch(()=>{});void service.models.cleanup(store.now()).catch(()=>{});},60_000).unref();
   if(process.env.REELMIND_DEV_URL&&!app.isPackaged)await window.loadURL('http://127.0.0.1:5173');else await window.loadFile(path.join(app.getAppPath(),'dist/index.html'));
   if(selfTest){
     try{await new Promise(r=>setTimeout(r,1000));const state=await service.readiness();if(!state.ready)throw new Error('Packaged runtime incomplete: '+state.missing.join(', '));await run(path.join(service.runtime,'python/python.exe'),['-c','import faster_whisper, sherpa_onnx, cv2; print("workers ready")']);const content=await window.webContents.executeJavaScript('document.body.innerText');if(!content.includes('Great little moments.'))throw new Error('Packaged renderer did not load');console.log(JSON.stringify({packaged:app.isPackaged,renderer:true,runtime:true,workers:true}));app.quit();}catch(error){console.error(error);app.exit(1);}

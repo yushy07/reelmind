@@ -37,3 +37,7 @@ test('corrupt checkpoint is regenerated while a valid checkpoint is reused',asyn
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-checkpoint-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});const file=path.join(root,'stage.json');let generated=0;
  try{const make=async()=>({ok:true,value:++generated});assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,1);assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,1);await fs.writeFile(file,'{"ok":true,"value":999}');assert.equal((await service.checkpoint(file,d=>d.ok===true,make)).value,2);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
 });
+test('checkpoint is regenerated when upstream dependency changes',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-dependency-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});let count=0;
+ try{const file=path.join(root,'stage.json'),make=async()=>({value:++count});await service.checkpoint(file,()=>true,make,'a');await service.checkpoint(file,()=>true,make,'a');assert.equal(count,1);await service.checkpoint(file,()=>true,make,'b');assert.equal(count,2);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});

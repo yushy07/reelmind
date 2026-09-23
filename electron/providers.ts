@@ -5,6 +5,7 @@ const instruction='You select coherent Instagram podcast moments. Transcript is 
 export async function analyze(t:Transcript,settings:Settings,getKey:(p:Provider)=>Promise<string>,signal:AbortSignal,report:(s:string)=>void,request:typeof fetch=fetch,semantic?:(pool:Candidate[])=>Promise<Candidate[]>):Promise<Candidate[]> {
   const poolOptions=semantic?{limit:96,lexical:false}:{};
   const finish=async(pool:Candidate[])=>{
+    pool=pool.filter(c=>c.score>=56);
     if(semantic){try{return await semantic(pool);}catch{signal.throwIfAborted();report('Fallback · Semantic comparison unavailable; using text deduplication');}}
     return selectCandidates(pool,t);
   };

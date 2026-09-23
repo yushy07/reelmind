@@ -1,16 +1,18 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import os from 'node:os';
 import { Store, atomicJSON, removeWorkspace, externalDirectory, hash } from './storage';
 import { DAY, validateUrl, planEdit } from './core';
 import { analyze } from './providers';
 import { candidateTexts, semanticSelection, SEMANTIC_VERSION } from './semantic';
 import { ModelManager, TURBO } from './models';
+import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
 import type { Job, Stage, Transcript, Candidate, Frame, Provider } from '../shared/types';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
+const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class Service {
   active=new Map<string,AbortController>();
   saving=new Set<string>();
@@ -50,7 +52,7 @@ export class Service {
     this.update(job,{stage:'queued',cleanupAt:undefined,error:undefined,message:'Resuming from saved progress'});this.pump();
   }
   async seal(file:string){await fs.writeFile(file+'.sha256',await hash(file),'utf8');}
-  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>):Promise<T>{try{const value=JSON.parse(await fs.readFile(file,'utf8'));const expected=(await fs.readFile(file+'.sha256','utf8')).trim();if(validate(value)&&expected===await hash(file))return value;}catch{}const value=await generate();await atomicJSON(file,value);await this.seal(file);return value;}
+  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>,dependency?:string):Promise<T>{try{const value=JSON.parse(await fs.readFile(file,'utf8'));const expected=(await fs.readFile(file+'.sha256','utf8')).trim();const matches=!dependency||await fs.readFile(file+'.dependency','utf8')===dependency;if(matches&&validate(value)&&expected===await hash(file))return value;}catch{}const value=await generate();await atomicJSON(file,value);await this.seal(file);if(dependency)await fs.writeFile(file+'.dependency',dependency,'utf8');return value;}
   async process(job:Job){
     const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
     const phase=(stage:Stage,progress:number,message:string)=>this.update(job,{stage,checkpoint:stage,progress,message,cleanupAt:undefined});
@@ -76,6 +78,9 @@ export class Service {
       phase('transcribing',12,'Listening locally · English, Hindi and Japanese');
       const transcriptFile=path.join(work,'transcript.json');
       let transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments)&&d.segments.length,async()=>{
+        // Regeneration invalidates speaker assignments and downstream decisions.
+        await fs.unlink(path.join(work,'frames.json.sha256')).catch(()=>{});
+        await fs.unlink(path.join(work,'candidates.json.sha256')).catch(()=>{});
         const transcribe=async(mode:'standard'|'turbo',cpuOnly=false)=>{
           const args=[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models')];
           if(mode==='turbo')args.push('--model-path',this.models.directory(job.modelRevision));
@@ -84,15 +89,12 @@ export class Service {
           const value=JSON.parse(await fs.readFile(transcriptFile,'utf8'));if(value.version!==1||!value.segments?.length)throw new Error('Transcription returned no usable speech');
           this.update(job,{effectiveTranscriptionMode:mode});return value as Transcript;
         };
-        if(job.transcriptionMode==='turbo'&&job.effectiveTranscriptionMode!=='standard'){
-          try{return await transcribe('turbo');}catch{signal.throwIfAborted();this.update(job,{effectiveTranscriptionMode:'standard',message:'Turbo unavailable · retrying with Whisper small',fallbacks:[...new Set([...(job.fallbacks||[]),'Turbo transcription failed; using Whisper small on CPU'])]});}
-        }
-        return transcribe('standard',job.transcriptionMode==='turbo');
-      });
+        return transcribeWithFallback(job.transcriptionMode||'standard',job.effectiveTranscriptionMode,signal,transcribe,()=>this.update(job,{effectiveTranscriptionMode:'standard',message:'Turbo unavailable · retrying with Whisper small',fallbacks:[...new Set([...(job.fallbacks||[]),'Turbo transcription failed; using Whisper small on CPU'])]}));
+      },fingerprint({audio:await hash(audio),mode:job.transcriptionMode||'standard',revision:job.modelRevision||'whisper-small-bundled',version:2}));
       phase('framing',43,'Matching voices and finding faces');
       const frames=await this.checkpoint<Frame[]>(path.join(work,'frames.json'),d=>Array.isArray(d),async()=>{
         await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'frame','--input',source,'--audio',audio,'--transcript',transcriptFile,'--output',path.join(work,'frames.json'),'--models',path.join(this.runtime,'models')],{signal,progress:line=>{try{const p=JSON.parse(line);this.update(job,{progress:43+p.progress*10,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(path.join(work,'frames.json'),'utf8'));
-      });
+      },fingerprint(transcript.segments.map(({speaker,...segment})=>segment)));
       await this.seal(transcriptFile);
       transcript=JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       phase('analyzing',54,'Finding moments across the entire video');
@@ -106,17 +108,18 @@ export class Service {
         const selected=semanticSelection(pool,vectors);
         await atomicJSON(path.join(work,'embedding-manifest.json'),{version:SEMANTIC_VERSION,transcript:await hash(transcriptFile),input:await hash(input),ranges:pool.map(c=>[c.start,c.end])});
         return selected;
-      }));
+      }),fingerprint({transcript,version:SEMANTIC_VERSION}));
       if(!candidates.length){this.update(job,{stage:'completed',progress:100,message:'No strong 30–60 second moments found. Try a different video.',cleanupAt:this.store.now()+DAY});this.notify(job);return;}
       phase('rendering',62,`Creating ${candidates.length} Reels`);
       // Batches contain three clips; render one at a time to bound filter memory.
       for(let batch=0;batch<candidates.length;batch+=3){for(let i=batch;i<Math.min(batch+3,candidates.length);i++){
         signal.throwIfAborted();const id=String(i+1).padStart(2,'0');const file=path.join(output,`reelmind_${id}.mp4`);
-        const previous=job.outputs.find(r=>r.id===id);if(previous&&await exists(file)){try{await probe(this.runtime,file,signal);continue;}catch{}}
-        const plan=planEdit(candidates[i],transcript,frames,media.fps);const clipWork=path.join(work,'clip_'+id);await fs.mkdir(clipWork,{recursive:true});await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
+        const plan=planEdit(candidates[i],transcript,frames,media.fps);const planHash=fingerprint({plan,quality:this.store.settings().quality});
+        const previous=job.outputs.find(r=>r.id===id);if(previous?.planHash===planHash&&await exists(file)){try{await probe(this.runtime,file,signal);continue;}catch{}}
+        const clipWork=path.join(work,'clip_'+id);await fs.mkdir(clipWork,{recursive:true});await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
         this.update(job,{message:`Batch ${Math.floor(batch/3)+1} · rendering Reel ${i+1} of ${candidates.length}`});
         const partial=file+'.partial.mp4';await render(this.runtime,source,plan,partial,clipWork,this.store.settings().quality,this.renderHardware,signal,n=>this.update(job,{progress:62+(i+n)/candidates.length*37}),message=>this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),message])],message}));await fs.rename(partial,file);
-        job.outputs=job.outputs.filter(r=>r.id!==id);job.outputs.push({id,title:candidates[i].hook.slice(0,100),duration:plan.duration,file,reason:candidates[i].reason});this.update(job,{outputs:job.outputs});
+        job.outputs=job.outputs.filter(r=>r.id!==id);job.outputs.push({id,title:candidates[i].hook.slice(0,100),duration:plan.duration,file,reason:candidates[i].reason,planHash});this.update(job,{outputs:job.outputs});
       }}
       this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:this.store.now()+DAY});this.notify(job);
     }catch(error){this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});}

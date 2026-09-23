@@ -12,10 +12,9 @@ const RELEASE_NAME = `REELMIND v${pkg.version}`;
 const ASSET_PATH = path.resolve('release', `REELMIND Setup ${pkg.version}.exe`);
 const ASSET_NAME = `REELMIND.Setup.${pkg.version}.exe`;
 
-function computeSha256(filePath) {
+async function computeSha256(filePath) {
   const hash = crypto.createHash('sha256');
-  const fileBuffer = fs.readFileSync(filePath);
-  hash.update(fileBuffer);
+  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk);
   return hash.digest('hex').toUpperCase();
 }
 
@@ -49,16 +48,23 @@ async function main() {
     throw new Error(`Asset file not found: ${ASSET_PATH}`);
   }
   const stat = fs.statSync(ASSET_PATH);
-  const sha256 = computeSha256(ASSET_PATH);
+  const sha256 = await computeSha256(ASSET_PATH);
+  if(execSync('git status --porcelain',{encoding:'utf8'}).trim())throw new Error('Commit and push changes before publishing.');
+  const commit=execSync('git rev-parse HEAD',{encoding:'utf8'}).trim();
+  const remote=execSync('git ls-remote origin refs/heads/main',{encoding:'utf8'}).split(/\s/)[0];
+  if(commit!==remote)throw new Error('Push the verified commit before publishing.');
   console.log(`Asset size: ${(stat.size / 1024 / 1024).toFixed(2)} MB (${stat.size} bytes)`);
   console.log(`SHA-256: ${sha256}`);
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
-- Project naming: set custom project names independently from the source media title
-- Provider fallback transparency: clearer in-app visibility when falling back to local analysis
-- Resilient worker processing: improved recovery and fallback handling
-- Includes bundled local AI models, FFmpeg, and media runtime
+- Bundled local MiniLM semantic clip diversity with lexical fallback
+- Optional verified Whisper Turbo download; Standard remains default
+- Per-project model snapshots, CPU fallback and resumable model downloads
+- Includes Whisper small, MiniLM, FFmpeg and the local runtime; Turbo is not bundled
+- Personal-use prerelease: see docs/MODEL_UPGRADE_VALIDATION.md for verified checks and remaining language evaluation
+
+Source commit: ${commit}
 
 Installer SHA-256: ${sha256}
 
@@ -84,6 +90,7 @@ The installer is unsigned, so Windows SmartScreen may display a warning.
       },
       body: JSON.stringify({
         tag_name: TAG,
+        target_commitish: commit,
         name: RELEASE_NAME,
         body,
         draft: false,
@@ -106,19 +113,7 @@ The installer is unsigned, so Windows SmartScreen may display a warning.
 
   const existingAsset = (release.assets || []).find((a) => a.name === ASSET_NAME);
   if (existingAsset) {
-    console.log(`Asset ${ASSET_NAME} already exists (ID: ${existingAsset.id}). Deleting to re-upload...`);
-    const delRes = await githubRequest(
-      `https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${existingAsset.id}`,
-      {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    if (!delRes.ok && delRes.status !== 204) {
-      console.warn(`Failed to delete existing asset: ${delRes.status}`);
-    } else {
-      console.log('Existing asset deleted.');
-    }
+    throw new Error(`Asset ${ASSET_NAME} already exists. Existing release downloads are never replaced; choose a new version.`);
   }
 
   console.log(`Uploading ${ASSET_NAME} (${(stat.size / 1024 / 1024).toFixed(2)} MB)...`);

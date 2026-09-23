@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {hash,atomicJSON} from './storage';
+import {hash,atomicJSON,removeWorkspace} from './storage';
 import manifest from '../shared/model-manifest.json';
 export const TURBO=manifest.turbo;
 export interface ModelStatus {ready:boolean;running:boolean;downloaded:number;total:number;freeBytes:number;message:string;error?:string}
@@ -19,6 +19,11 @@ export class ModelManager {
     if(this.state.ready)this.state.message='Turbo installed · works offline · CPU INT8';
   }
   cancel(){this.controller?.abort();}
+  async cleanup(now=Date.now()){
+    if(this.state.running)return;
+    const partial=await fs.stat(this.staging()).catch(()=>null);
+    if(partial&&now-partial.mtimeMs>=24*60*60*1000)await removeWorkspace(path.join(this.root,'model-downloads'),this.staging());
+  }
   start(){
     if(this.state.running||this.state.ready)return;
     this.controller=new AbortController();this.state.running=true;this.state.error=undefined;this.changed();
@@ -28,7 +33,7 @@ export class ModelManager {
     }).finally(()=>{this.state.running=false;this.changed();});
   }
   async download(signal:AbortSignal){
-    const stage=this.staging();await fs.mkdir(stage,{recursive:true});
+    const stage=this.staging();await fs.mkdir(stage,{recursive:true});await fs.utimes(stage,new Date(),new Date());
     let completed=0;let lastReport=0;
     for(const spec of this.spec.files){
       signal.throwIfAborted();const file=path.join(stage,spec.name),partial=file+'.part';
@@ -47,7 +52,7 @@ export class ModelManager {
         else throw new Error('Unexpected download response');
         const handle=await fs.open(partial,offset?'a':'w');
         const reader=response.body.getReader();
-        try{while(true){signal.throwIfAborted();const {done,value:chunk}=await reader.read();if(done)break;if(offset+chunk.length>spec.size)throw new Error('Downloaded model exceeds expected size');let written=0;while(written<chunk.length){const result=await handle.write(chunk,written,chunk.length-written);written+=result.bytesWritten;}offset+=chunk.length;this.state.downloaded=completed+offset;if(Date.now()-lastReport>250){lastReport=Date.now();this.changed();}}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();await handle.close();}
+        try{while(true){signal.throwIfAborted();const {done,value:chunk}=await reader.read();if(done)break;if(offset+chunk.length>spec.size)throw new Error('Downloaded model exceeds expected size');let written=0;while(written<chunk.length){const result=await handle.write(chunk,written,chunk.length-written);written+=result.bytesWritten;}offset+=chunk.length;this.state.downloaded=completed+offset;if(Date.now()-lastReport>250){lastReport=Date.now();this.changed();}}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();await handle.close();await fs.utimes(stage,new Date(),new Date());}
       }
       this.state.message='Verifying Turbo · '+spec.name;this.changed();
       if(offset!==spec.size||await hash(partial)!==spec.sha256){await fs.unlink(partial).catch(()=>{});throw new Error('Model verification failed. Retry to download a clean copy.');}

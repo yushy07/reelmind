@@ -22,6 +22,18 @@ Screenshots are from the desktop app. The Settings image contains no API keys.
 
 ## What it makes
 
+### Model upgrade (v0.2.0)
+
+- **MiniLM** compares the actual transcript of up to 96 candidate moments before choosing at most 12 distinct clips. It runs offline with the bundled quantized model. If inference fails, text-based deduplication takes over.
+- **Standard / Whisper small** remains the default. In Settings, optionally download **Whisper turbo** (about 1.62 GB plus 512 MB free-space margin), then select Higher accuracy and save settings. Turbo runs on CPU INT8 initially, so no additional NVIDIA libraries are needed.
+- Turbo downloads are checksum-verified, can be paused/resumed, and become available offline only after verification. A failed Turbo worker retries with small. Each project keeps its chosen mode when resumed.
+- Installed models are separate from 24-hour project cleanup. Abandoned partial downloads expire after 24 hours; completed models do not. No model weights, test media or credentials are committed to Git.
+- This is not a promise that Turbo improves every recording: multilingual accuracy and timing still depend on the source.
+
+![Local transcription mode and optional Turbo download](docs/screenshots/transcription-settings.png)
+
+See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. The existing public release link above stays unchanged until the new release is published.
+
 - Up to **12** automatically selected Reels per video; fewer are fine, and weak moments are not added to meet a quota.
 - **30–60 seconds** each, exported as **1080 × 1920 MP4** with H.264 video and AAC audio.
 - Burned-in animated captions, punch-ins, speaker-aware framing, and source-audio-only sound.

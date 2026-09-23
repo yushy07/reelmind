@@ -1,6 +1,6 @@
 # Third-party license inventory
 
-Generated from the dependencies packaged with REELMIND 2026-09-22. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
+Generated from the dependencies packaged with REELMIND 2026-09-23. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
 
 ## Major runtime components
 
@@ -10,6 +10,8 @@ Generated from the dependencies packaged with REELMIND 2026-09-22. Package metad
 | FFmpeg | BtbN n9.0 Windows LGPL build ([source/build definitions](https://github.com/BtbN/FFmpeg-Builds), [FFmpeg source](https://github.com/FFmpeg/FFmpeg/tree/n9.0)) | LGPL-3.0-or-later |
 | yt-dlp | packaged executable ([source](https://github.com/yt-dlp/yt-dlp)) | Unlicense |
 | faster-whisper small model | [Systran model](https://huggingface.co/Systran/faster-whisper-small) | MIT |
+| Multilingual MiniLM-L12-v2 | [Pinned ONNX model](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2) | Apache-2.0 |
+| Whisper large-v3-turbo (optional download) | [CTranslate2 model](https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo) | MIT |
 | OpenCV YuNet model | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | Apache-2.0 |
 | Sherpa ONNX speaker model/runtime | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Apache-2.0 |
 | Noto fonts | [Google Noto](https://github.com/notofonts) | OFL-1.1 |
