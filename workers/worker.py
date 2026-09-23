@@ -18,7 +18,7 @@ def transcribe(args):
     from faster_whisper import WhisperModel
     from faster_whisper.audio import decode_audio
     audio = decode_audio(args.input, sampling_rate=16000)
-    model_path = str(Path(args.models) / 'whisper-small')
+    model_path = args.model_path or str(Path(args.models) / 'whisper-small')
     def run_model(model, device):
         result = []
         # Re-detect language every 30 seconds, allowing Hindi/English/Japanese switches.
@@ -164,7 +164,7 @@ def setup(args):
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('command',choices=['transcribe','frame','setup'])
-    for key in ['input','output','models','transcript','audio']:
+    for key in ['input','output','models','transcript','audio','model-path']:
         parser.add_argument('--'+key)
     parser.add_argument('--gpu', action='store_true')
     args=parser.parse_args()

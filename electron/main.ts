@@ -42,18 +42,20 @@ app.whenReady().then(async()=>{
   window.webContents.on('will-navigate',event=>event.preventDefault());
   window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   const handle=(name:string,fn:(...args:any[])=>any)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted request');return fn(...args);});
-  handle('status',async()=>({jobs:store.jobs(),settings:store.settings(),keys:keyPresence,runtime:await service.readiness(),hardware,setup} satisfies Status));
+  handle('status',async()=>({jobs:store.jobs(),settings:store.settings(),keys:keyPresence,runtime:await service.readiness(),hardware,setup,turbo:service.models.state} satisfies Status));
   handle('pick-video',async()=>{const result=await dialog.showOpenDialog(window,{title:'Choose a video',properties:['openFile'],filters:[{name:'Video',extensions:['mp4','mov','mkv','avi','webm']}]});const file=result.filePaths[0];if(result.canceled||!file)return null;service.allowedInputs.add(file);return file;});
   handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096),name:z.string().trim().max(80).optional()}).strict().parse(input)));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
   handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
-  handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
+  handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);if(next.transcriptionMode==='turbo'&&!service.models.state.ready)throw new Error('Download and verify Turbo before selecting it.');const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
   handle('setup',async()=>{
     if(setup.running)return;
     if(app.isPackaged)throw new Error('The packaged local engine is incomplete. Reinstall REELMIND from a complete installer.');
     setup.running=true;setup.error=undefined;setup.message='Downloading local engine and models…';changed();
     void run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts/setup-runtime.ps1')],{progress:line=>{setup.message=line.slice(-200);changed();}}).then(()=>{setup.message='Local engine ready';}).catch(e=>{setup.error=e.message;}).finally(()=>{setup.running=false;changed();});
   });
+  await service.models.init();
+  handle('turbo',async action=>{z.enum(['download','cancel']).parse(action);if(action==='download')service.models.start();else service.models.cancel();});
   await service.init();
   if(!selfTest)for(const p of ['gemini','openrouter'] as const)keyPresence[p]=!!await service.key(p).catch(()=>'');
   try{const value=await run('nvidia-smi',['--query-gpu=name,memory.total','--format=csv,noheader,nounits']);const fields=value.trim().split(',');const vram=Number(fields.at(-1)?.trim()||0);service.configureHardware(vram);hardware=`${fields.slice(0,-1).join(',').trim()} · ${Math.round(vram/1024)} GB VRAM · ${vram>=2048?'NVENC enabled':'CPU encoding'}`;}catch{hardware='CPU encoding available · NVIDIA GPU not detected';}changed();
@@ -63,5 +65,5 @@ app.whenReady().then(async()=>{
     try{await new Promise(r=>setTimeout(r,1000));const state=await service.readiness();if(!state.ready)throw new Error('Packaged runtime incomplete: '+state.missing.join(', '));await run(path.join(service.runtime,'python/python.exe'),['-c','import faster_whisper, sherpa_onnx, cv2; print("workers ready")']);const content=await window.webContents.executeJavaScript('document.body.innerText');if(!content.includes('Great little moments.'))throw new Error('Packaged renderer did not load');console.log(JSON.stringify({packaged:app.isPackaged,renderer:true,runtime:true,workers:true}));app.quit();}catch(error){console.error(error);app.exit(1);}
   }
 });
-app.on('before-quit',event=>{if(service&&!closing){event.preventDefault();closing=true;void service.shutdown().finally(()=>app.quit());}});
+app.on('before-quit',event=>{if(service&&!closing){event.preventDefault();closing=true;service.models.cancel();void Promise.all([service.shutdown(),service.models.task]).finally(()=>app.quit());}});
 app.on('window-all-closed',()=>app.quit());

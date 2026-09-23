@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import type { Job, Settings } from '../shared/types';
-export const defaults:Settings={providerOrder:['gemini','openrouter'],geminiModel:'gemini-flash-latest',openrouterModel:'openrouter/free',quality:'balanced',cloudEnabled:true,geminiFreeConfirmed:false};
+export const defaults:Settings={providerOrder:['gemini','openrouter'],geminiModel:'gemini-flash-latest',openrouterModel:'openrouter/free',quality:'balanced',cloudEnabled:true,geminiFreeConfirmed:false,transcriptionMode:'standard'};
 export class Store {
   db:DatabaseSync;
   constructor(file:string){this.db=new DatabaseSync(file);this.db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS preferences(id TEXT PRIMARY KEY, data TEXT NOT NULL);');}

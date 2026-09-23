@@ -38,4 +38,6 @@ Download-Asset 'https://raw.githubusercontent.com/notofonts/noto-fonts/main/hint
 Download-Asset 'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf' (Join-Path $fontDir 'NotoSansCJKjp-Bold.otf')
 & $pythonExe (Join-Path $PSScriptRoot '../workers/worker.py') setup --models $modelDir
 if ($LASTEXITCODE) { throw 'Speech model download failed' }
+& node (Join-Path $PSScriptRoot 'setup-minilm.mjs')
+if ($LASTEXITCODE) { throw 'MiniLM download failed' }
 Write-Output 'REELMIND runtime ready.'

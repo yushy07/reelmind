@@ -8,6 +8,11 @@ import {Store} from '../electron/storage';
 import {Service} from '../electron/service';
 import {DAY} from '../electron/core';
 import type {Job} from '../shared/types';
+test('jobs snapshot Turbo while later settings changes do not alter resume',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-mode-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});service.stopping=true;service.readiness=async()=>({ready:true,missing:[]});
+ try{store.setSettings({...store.settings(),transcriptionMode:'turbo'});await assert.rejects(()=>service.create({kind:'url',value:'https://youtu.be/example'}),/Download Turbo/);service.models.state.ready=true;const id=await service.create({kind:'url',value:'https://youtu.be/example'});assert.equal(store.get(id)?.transcriptionMode,'turbo');store.setSettings({...store.settings(),transcriptionMode:'standard'});await service.action(id,'pause');await service.action(id,'resume');assert.equal(store.get(id)?.transcriptionMode,'turbo');assert.ok(store.get(id)?.modelRevision);}
+ finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});
 test('named projects keep their chosen name separately from the source title',async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-name-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});service.stopping=true;service.readiness=async()=>({ready:true,missing:[]});
  try{const id=await service.create({kind:'url',value:'https://youtu.be/example',name:'  My podcast  '});const job=store.get(id)!;assert.equal(job.name,'My podcast');assert.equal(job.title,'Linked video');assert.equal(job.stage,'queued');service.update(job,{title:'Downloaded video title'});assert.equal(store.get(id)?.name,'My podcast');const unnamedId=await service.create({kind:'url',value:'https://youtu.be/example',name:'  '});const unnamed=store.get(unnamedId)!;service.update(unnamed,{title:'Detected source title'});const restored=store.get(unnamedId)!;assert.equal(restored.name||restored.title,'Detected source title');}

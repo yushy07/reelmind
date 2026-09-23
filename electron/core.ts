@@ -3,7 +3,7 @@ import type { Candidate, Transcript, Word, EditPlan, Frame } from '../shared/typ
 export const DAY = 24 * 60 * 60 * 1000;
 export const candidateSchema = z.object({start:z.number().finite().nonnegative(),end:z.number().finite().positive(),hook:z.string().max(500),context:z.string().max(1000),payoff:z.string().max(1000),category:z.string().max(80),reason:z.string().max(1000),score:z.number().min(0).max(100)}).strict();
 export const responseSchema = z.object({candidates:z.array(candidateSchema).max(100)}).strict();
-export const settingsSchema = z.object({providerOrder:z.array(z.enum(['gemini','openrouter'])).length(2).refine(a=>new Set(a).size===2),geminiModel:z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/),openrouterModel:z.string().max(150).refine(s=>s==='openrouter/free'||/^[\w.-]+\/[\w.:-]+:free$/.test(s),'Only free OpenRouter models are allowed.'),quality:z.enum(['balanced','high']),cloudEnabled:z.boolean(),geminiFreeConfirmed:z.boolean()}).strict();
+export const settingsSchema = z.object({providerOrder:z.array(z.enum(['gemini','openrouter'])).length(2).refine(a=>new Set(a).size===2),geminiModel:z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/),openrouterModel:z.string().max(150).refine(s=>s==='openrouter/free'||/^[\w.-]+\/[\w.:-]+:free$/.test(s),'Only free OpenRouter models are allowed.'),quality:z.enum(['balanced','high']),cloudEnabled:z.boolean(),geminiFreeConfirmed:z.boolean(),transcriptionMode:z.enum(['standard','turbo']).default('standard')}).strict();
 export function validateUrl(value:string) {
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port) throw new Error('Use a public HTTPS video link.');
@@ -15,7 +15,7 @@ export function validateUrl(value:string) {
 }
 const terms=(s:string)=>new Set(s.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu)||[]);
 export function similarity(a:string,b:string) {const x=terms(a),y=terms(b);return [...x].filter(t=>y.has(t)).length/Math.max(1,new Set([...x,...y]).size);}
-export function selectCandidates(candidates:Candidate[],t:Transcript):Candidate[] {
+export function selectCandidates(candidates:Candidate[],t:Transcript,options:{limit?:number;lexical?:boolean}={}):Candidate[] {
   const selected:Candidate[]=[];
   for(const raw of [...candidates].sort((a,b)=>b.score-a.score)) {
     if(!candidateSchema.safeParse(raw).success||raw.score<56) continue;
@@ -24,12 +24,12 @@ export function selectCandidates(candidates:Candidate[],t:Transcript):Candidate[
     if(!first||!last)continue;
     const c={...raw,start:Math.max(0,first.start-.06),end:Math.min(t.duration,last.end+.12)};
     if(c.end-c.start<30||c.end-c.start>60)continue;
-    if(selected.some(p=>Math.max(0,Math.min(c.end,p.end)-Math.max(c.start,p.start))/Math.min(c.end-c.start,p.end-p.start)>.3||similarity(c.hook+' '+c.context,p.hook+' '+p.context)>.6))continue;
-    selected.push(c); if(selected.length===12)break;
+    if(selected.some(p=>Math.max(0,Math.min(c.end,p.end)-Math.max(c.start,p.start))/Math.min(c.end-c.start,p.end-p.start)>.3||(options.lexical!==false&&similarity(c.hook+' '+c.context,p.hook+' '+p.context)>.6)))continue;
+    selected.push(c); if(selected.length===(options.limit??12))break;
   }
   return selected;
 }
-export function localCandidates(t:Transcript):Candidate[] {
+export function localCandidates(t:Transcript,options:{limit?:number;lexical?:boolean}={}):Candidate[] {
   const candidates:Candidate[]=[];
   for(let i=0;i<t.segments.length;i++) {
     const first=t.segments[i]; const group=[];
@@ -51,7 +51,7 @@ export function localCandidates(t:Transcript):Candidate[] {
     const score=Math.min(92,30+(hook?15:0)+(payoff?9:0)+(startsClean?5:0)+Math.min(12,keywords*3)+Math.min(6,turns*2)+Math.min(6,energy*90)+Math.min(5,energyShift*120)+Math.min(5,questions*2)+Math.min(5,reactions*2)+Math.min(7,variety*8));
     candidates.push({start:first.start,end:last.end,hook:first.text,context:group.slice(1,-1).map(s=>s.text).join(' ').slice(0,950),payoff:last.text,category:questions?'question-answer':reactions?'reaction':'conversation',reason:'Local ranking: clean opening, hook/payoff, question-answer flow, speaker turns, vocal energy, reactions and topic variety.',score});
   }
-  return selectCandidates(candidates,t);
+  return selectCandidates(candidates,t,options);
 }
 export function transcriptChunks(t:Transcript) {
   const chunks:typeof t.segments[]=[];let group:typeof t.segments=[];let chars=0;

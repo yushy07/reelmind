@@ -5,6 +5,8 @@ import os from 'node:os';
 import { Store, atomicJSON, removeWorkspace, externalDirectory, hash } from './storage';
 import { DAY, validateUrl, planEdit } from './core';
 import { analyze } from './providers';
+import { candidateTexts, semanticSelection, SEMANTIC_VERSION } from './semantic';
+import { ModelManager, TURBO } from './models';
 import { run } from './process';
 import { probe, render } from './media';
 import type { Job, Stage, Transcript, Candidate, Frame, Provider } from '../shared/types';
@@ -15,7 +17,8 @@ export class Service {
   allowedInputs=new Set<string>();
   stopping=false;
   renderHardware={nvenc:false,cudaSpeechCandidate:false,cpuThreads:Math.max(2,Math.min(6,Math.floor(os.cpus().length/2)))};
-  constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){}
+  models:ModelManager;
+  constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){this.models=new ModelManager(root,changed);}
   configureHardware(vramMb:number){this.renderHardware.nvenc=vramMb>=2048;this.renderHardware.cudaSpeechCandidate=vramMb>=4096;if(vramMb&&vramMb<4096)this.renderHardware.cpuThreads=Math.min(4,this.renderHardware.cpuThreads);}
   work(id:string){if(!/^[\da-f-]{36}$/.test(id))throw new Error('Invalid project');return path.join(this.root,'work',id);}
   out(id:string){this.work(id);return path.join(this.root,'outputs',id);}
@@ -29,6 +32,9 @@ export class Service {
     if(input.kind==='url')input.value=validateUrl(input.value);
     else if(!this.allowedInputs.has(input.value))throw new Error('Choose your local video with the file picker.');
     const now=this.store.now();const title=input.kind==='local'?path.basename(input.value):'Linked video';const job:Job={id:randomUUID(),name:input.name?.trim()||undefined,title,input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
+    job.transcriptionMode=this.store.settings().transcriptionMode||'standard';
+    if(job.transcriptionMode==='turbo'&&!this.models.state.ready)throw new Error('Download Turbo in Settings first, or choose Standard.');
+    job.modelRevision=job.transcriptionMode==='turbo'?TURBO.revision:'whisper-small-bundled';
     this.store.put(job);this.changed();this.pump();return job.id;
   }
   pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}
@@ -70,7 +76,18 @@ export class Service {
       phase('transcribing',12,'Listening locally · English, Hindi and Japanese');
       const transcriptFile=path.join(work,'transcript.json');
       let transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments)&&d.segments.length,async()=>{
-        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models'),...(this.renderHardware.cudaSpeechCandidate?['--gpu']:[])],{signal,progress:line=>{try{const p=JSON.parse(line);if(p.fallback){this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),p.fallback])],message:p.message});}else this.update(job,{progress:12+p.progress*30,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(transcriptFile,'utf8'));
+        const transcribe=async(mode:'standard'|'turbo',cpuOnly=false)=>{
+          const args=[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models')];
+          if(mode==='turbo')args.push('--model-path',this.models.directory(job.modelRevision));
+          else if(!cpuOnly&&this.renderHardware.cudaSpeechCandidate)args.push('--gpu');
+          await run(path.join(this.runtime,'python/python.exe'),args,{signal,progress:line=>{try{const p=JSON.parse(line);if(p.fallback){this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),p.fallback])],message:p.message});}else if(Number.isFinite(p.progress))this.update(job,{progress:12+p.progress*30,message:`${mode==='turbo'?'Turbo':'Standard'} · ${p.message}`});}catch{}}});
+          const value=JSON.parse(await fs.readFile(transcriptFile,'utf8'));if(value.version!==1||!value.segments?.length)throw new Error('Transcription returned no usable speech');
+          this.update(job,{effectiveTranscriptionMode:mode});return value as Transcript;
+        };
+        if(job.transcriptionMode==='turbo'&&job.effectiveTranscriptionMode!=='standard'){
+          try{return await transcribe('turbo');}catch{signal.throwIfAborted();this.update(job,{effectiveTranscriptionMode:'standard',message:'Turbo unavailable · retrying with Whisper small',fallbacks:[...new Set([...(job.fallbacks||[]),'Turbo transcription failed; using Whisper small on CPU'])]});}
+        }
+        return transcribe('standard',job.transcriptionMode==='turbo');
       });
       phase('framing',43,'Matching voices and finding faces');
       const frames=await this.checkpoint<Frame[]>(path.join(work,'frames.json'),d=>Array.isArray(d),async()=>{
@@ -79,7 +96,17 @@ export class Service {
       await this.seal(transcriptFile);
       transcript=JSON.parse(await fs.readFile(transcriptFile,'utf8'));
       phase('analyzing',54,'Finding moments across the entire video');
-      const candidates=await this.checkpoint<Candidate[]>(path.join(work,'candidates.json'),d=>Array.isArray(d)&&d.every(c=>c.end-c.start>=30&&c.end-c.start<=60),()=>analyze(transcript,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':message.startsWith('OpenRouter')?'OpenRouter':message.startsWith('Local')?'Local':job.provider,fallbacks:message.startsWith('Fallback · ')?[...new Set([...(job.fallbacks||[]),message.slice('Fallback · '.length)])]:job.fallbacks})));
+      const candidates=await this.checkpoint<Candidate[]>(path.join(work,'candidates.json'),d=>Array.isArray(d)&&d.every(c=>c.end-c.start>=30&&c.end-c.start<=60),()=>analyze(transcript,this.store.settings(),p=>this.key(p),signal,message=>this.update(job,{message,provider:message.startsWith('Gemini')?'Gemini':message.startsWith('OpenRouter')?'OpenRouter':message.startsWith('Local')?'Local':job.provider,fallbacks:message.startsWith('Fallback · ')?[...new Set([...(job.fallbacks||[]),message.slice('Fallback · '.length)])]:job.fallbacks}),fetch,async pool=>{
+        if(pool.length<2)return pool;
+        this.update(job,{message:'Comparing ideas locally · MiniLM'});
+        const input=path.join(work,'embedding-input.json'),output=path.join(work,'embeddings.json');
+        await atomicJSON(input,candidateTexts(pool,transcript));
+        await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'semantic.py'),'--input',input,'--output',output,'--models',path.join(this.runtime,'models','minilm')],{signal});
+        const vectors=JSON.parse(await fs.readFile(output,'utf8'));
+        const selected=semanticSelection(pool,vectors);
+        await atomicJSON(path.join(work,'embedding-manifest.json'),{version:SEMANTIC_VERSION,transcript:await hash(transcriptFile),input:await hash(input),ranges:pool.map(c=>[c.start,c.end])});
+        return selected;
+      }));
       if(!candidates.length){this.update(job,{stage:'completed',progress:100,message:'No strong 30–60 second moments found. Try a different video.',cleanupAt:this.store.now()+DAY});this.notify(job);return;}
       phase('rendering',62,`Creating ${candidates.length} Reels`);
       // Batches contain three clips; render one at a time to bound filter memory.
