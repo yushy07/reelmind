@@ -10,7 +10,8 @@ import { ModelManager, TURBO } from './models';
 import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
-import type { Job, Stage, Transcript, Candidate, Frame, Provider } from '../shared/types';
+import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput } from '../shared/types';
+import { parsePastedTranscript } from './pasted-transcript';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class Service {
@@ -29,14 +30,18 @@ export class Service {
   async setKey(p:Provider,key:string){await run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(this.workers,'credentials.ps1')],{input:JSON.stringify({action:'set',provider:p,key})});}
   async readiness(){const required=['ffmpeg.exe','ffprobe.exe','yt-dlp.exe','python/python.exe','models/whisper-small/model.bin','models/whisper-small/config.json','models/whisper-small/vocabulary.txt','models/whisper-small/tokenizer.json','models/face.onnx','models/speaker.onnx','fonts/NotoSans-Bold.ttf','fonts/NotoSansDevanagari-Bold.ttf','fonts/NotoSansCJKjp-Bold.otf'];const missing=[];for(const f of required)if(!await exists(path.join(this.runtime,f)))missing.push(f);return {ready:!missing.length,missing};}
   async init(){await fs.mkdir(path.join(this.root,'work'),{recursive:true});await fs.mkdir(path.join(this.root,'outputs'),{recursive:true});const now=this.store.now();for(const j of this.store.jobs()){if(['importing','transcribing','analyzing','framing','rendering'].includes(j.stage)){this.update(j,{stage:'paused',message:'Processing was interrupted. Resume within 24 hours.',cleanupAt:Math.max(j.updatedAt,now)+DAY});}}await this.cleanup();this.pump();}
-  async create(input:Job['input']){
+  async create(request:CreateInput){
+    const {pastedTranscript,...input}=request;
     if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
+    if(pastedTranscript!==undefined){if(!pastedTranscript.trim())throw new Error('Paste transcript text or leave it blank to transcribe the video.');if(pastedTranscript.length>200_000)throw new Error('Transcript is too long. Keep it under 200,000 characters.');}
     if(input.kind==='url')input.value=validateUrl(input.value);
     else if(!this.allowedInputs.has(input.value))throw new Error('Choose your local video with the file picker.');
     const now=this.store.now();const title=input.kind==='local'?path.basename(input.value):'Linked video';const job:Job={id:randomUUID(),name:input.name?.trim()||undefined,title,input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
+    job.transcriptSource=pastedTranscript===undefined?'whisper':'pasted';
     job.transcriptionMode=this.store.settings().transcriptionMode||'standard';
-    if(job.transcriptionMode==='turbo'&&!this.models.state.ready)throw new Error('Download Turbo in Settings first, or choose Standard.');
+    if(job.transcriptSource==='whisper'&&job.transcriptionMode==='turbo'&&!this.models.state.ready)throw new Error('Download Turbo in Settings first, or choose Standard.');
     job.modelRevision=job.transcriptionMode==='turbo'?TURBO.revision:'whisper-small-bundled';
+    if(pastedTranscript!==undefined){const work=this.work(job.id);await fs.mkdir(work,{recursive:true});const inputFile=path.join(work,'pasted-transcript.txt');await fs.writeFile(inputFile+'.part',pastedTranscript,'utf8');await fs.rename(inputFile+'.part',inputFile);}
     this.store.put(job);this.changed();this.pump();return job.id;
   }
   pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}
@@ -75,12 +80,18 @@ export class Service {
       const media=await probe(this.runtime,source,signal);this.update(job,{duration:media.duration});
       const audio=path.join(work,'audio.wav');
       if(!await exists(audio)){await run(path.join(this.runtime,'ffmpeg.exe'),['-y','-i',source,'-vn','-ac','1','-ar','16000','-c:a','pcm_s16le',audio+'.part.wav'],{signal});await fs.rename(audio+'.part.wav',audio);}
-      phase('transcribing',12,'Listening locally · English, Hindi and Japanese');
+      phase('transcribing',12,job.transcriptSource==='pasted'?'Aligning your pasted transcript':'Listening locally · English, Hindi and Japanese');
       const transcriptFile=path.join(work,'transcript.json');
       let transcript=await this.checkpoint<Transcript>(transcriptFile,d=>d.version===1&&Array.isArray(d.segments)&&d.segments.length,async()=>{
         // Regeneration invalidates speaker assignments and downstream decisions.
         await fs.unlink(path.join(work,'frames.json.sha256')).catch(()=>{});
         await fs.unlink(path.join(work,'candidates.json.sha256')).catch(()=>{});
+        if(job.transcriptSource==='pasted'){
+          const pasted=await fs.readFile(path.join(work,'pasted-transcript.txt'),'utf8');
+          const value=parsePastedTranscript(pasted,media.duration);
+          this.update(job,{transcriptTiming:value.timingSource,message:value.timingSource==='estimated'?'Pasted transcript · estimated timing; captions may drift':'Pasted transcript · subtitle timing preserved'});
+          return value;
+        }
         const transcribe=async(mode:'standard'|'turbo',cpuOnly=false)=>{
           const args=[path.join(this.workers,'worker.py'),'transcribe','--input',audio,'--output',transcriptFile,'--models',path.join(this.runtime,'models')];
           if(mode==='turbo')args.push('--model-path',this.models.directory(job.modelRevision));
@@ -90,7 +101,8 @@ export class Service {
           this.update(job,{effectiveTranscriptionMode:mode});return value as Transcript;
         };
         return transcribeWithFallback(job.transcriptionMode||'standard',job.effectiveTranscriptionMode,signal,transcribe,()=>this.update(job,{effectiveTranscriptionMode:'standard',message:'Turbo unavailable · retrying with Whisper small',fallbacks:[...new Set([...(job.fallbacks||[]),'Turbo transcription failed; using Whisper small on CPU'])]}));
-      },fingerprint({audio:await hash(audio),mode:job.transcriptionMode||'standard',revision:job.modelRevision||'whisper-small-bundled',version:2}));
+      },fingerprint({audio:await hash(audio),mode:job.transcriptionMode||'standard',revision:job.modelRevision||'whisper-small-bundled',transcriptSource:job.transcriptSource||'whisper',pastedHash:job.transcriptSource==='pasted'?await hash(path.join(work,'pasted-transcript.txt')):undefined,version:2}));
+      this.update(job,{transcriptTiming:transcript.timingSource||(job.transcriptSource==='pasted'?'provided':'whisper')});
       phase('framing',43,'Matching voices and finding faces');
       const frames=await this.checkpoint<Frame[]>(path.join(work,'frames.json'),d=>Array.isArray(d),async()=>{
         await run(path.join(this.runtime,'python/python.exe'),[path.join(this.workers,'worker.py'),'frame','--input',source,'--audio',audio,'--transcript',transcriptFile,'--output',path.join(work,'frames.json'),'--models',path.join(this.runtime,'models')],{signal,progress:line=>{try{const p=JSON.parse(line);this.update(job,{progress:43+p.progress*10,message:p.message});}catch{}}});return JSON.parse(await fs.readFile(path.join(work,'frames.json'),'utf8'));

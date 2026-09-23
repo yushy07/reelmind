@@ -7,7 +7,7 @@ import { Service } from './service';
 import { settingsSchema } from './core';
 import { run } from './process';
 import { z } from 'zod';
-import type { Provider, Status } from '../shared/types';
+import type { CreateInput, Provider, Status } from '../shared/types';
 protocol.registerSchemesAsPrivileged([{scheme:'reel',privileges:{standard:true,secure:true,stream:true,supportFetchAPI:true,bypassCSP:false}}]);
 const selfTest=process.argv.includes('--self-test');
 if(selfTest)app.setPath('userData',path.join(app.getPath('temp'),'reelmind-check-'+process.pid));
@@ -44,7 +44,7 @@ app.whenReady().then(async()=>{
   const handle=(name:string,fn:(...args:any[])=>any)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted request');return fn(...args);});
   handle('status',async()=>({jobs:store.jobs(),settings:store.settings(),keys:keyPresence,runtime:await service.readiness(),hardware,setup,turbo:service.models.state} satisfies Status));
   handle('pick-video',async()=>{const result=await dialog.showOpenDialog(window,{title:'Choose a video',properties:['openFile'],filters:[{name:'Video',extensions:['mp4','mov','mkv','avi','webm']}]});const file=result.filePaths[0];if(result.canceled||!file)return null;service.allowedInputs.add(file);return file;});
-  handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096),name:z.string().trim().max(80).optional()}).strict().parse(input)));
+  handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096),name:z.string().trim().max(80).optional(),pastedTranscript:z.string().max(200_000).optional()}).strict().parse(input) as CreateInput));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
   handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
   handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);if(next.transcriptionMode==='turbo'&&!service.models.state.ready)throw new Error('Download and verify Turbo before selecting it.');const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
