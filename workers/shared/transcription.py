@@ -19,8 +19,8 @@ def run_transcription(
     Otherwise re-detects language dynamically every 30s (for podcasts/Hindi/Hinglish/Japanese).
     """
     import numpy as np
-    from faster_whisper import WhisperModel
-    from faster_whisper.audio import decode_audio
+    from faster_whisper import WhisperModel  # type: ignore
+    from faster_whisper.audio import decode_audio  # type: ignore
 
     audio = decode_audio(audio_path, sampling_rate=16000)
 

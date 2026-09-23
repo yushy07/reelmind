@@ -22,8 +22,8 @@ def save(file, data):
 
 def detect_scenes(args):
     """Decompose an anime episode into scenes and shots using PySceneDetect."""
-    import scenedetect
-    from scenedetect import open_video, SceneManager, ContentDetector
+    import scenedetect  # type: ignore
+    from scenedetect import open_video, SceneManager, ContentDetector  # type: ignore
 
     emit(progress=0.05, message='Detecting anime scene and shot boundaries')
     video = open_video(args.input)
@@ -73,7 +73,7 @@ def detect_scenes(args):
 def analyze_music(args):
     """Analyze music audio using Librosa: BPM, beats, onsets, and energy curve."""
     import numpy as np
-    import librosa
+    import librosa  # type: ignore
 
     emit(progress=0.1, message='Loading music track for rhythm analysis')
     # Load music at 22050Hz for efficient feature extraction
@@ -153,7 +153,8 @@ def transcribe(args):
 def get_face_detector(models_dir=None):
     """Retrieve anime face detector if available, otherwise fallback to OpenCV YuNet."""
     try:
-        import anime_face_detector
+        import importlib
+        anime_face_detector = importlib.import_module('anime_face_detector')
         detector = anime_face_detector.create_detector('yolov3')
         return ('anime_face_detector', detector)
     except Exception:
@@ -308,7 +309,7 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
 
 def analyze_audio_signals(audio_path, shots):
     """Compute RMS energy and onset transient spikes across audio for each shot."""
-    import soundfile as sf
+    import soundfile as sf  # type: ignore
     import numpy as np
 
     data, sr = sf.read(audio_path, dtype='float32')

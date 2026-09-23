@@ -15,6 +15,7 @@ cache/
 !.env.example
 Pasted text.txt
 VALIDATION.md
+phase.txt
 *.sqlite*
 *.db
 *.pem

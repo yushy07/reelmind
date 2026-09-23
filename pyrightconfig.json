@@ -1,0 +1,10 @@
+{
+  "include": [
+    "workers"
+  ],
+  "extraPaths": [
+    "runtime/python/Lib/site-packages",
+    "workers"
+  ],
+  "reportMissingImports": "none"
+}
