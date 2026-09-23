@@ -28,7 +28,7 @@ export class Service {
     if(!(await this.readiness()).ready)throw new Error('Download the local engine in Settings first.');
     if(input.kind==='url')input.value=validateUrl(input.value);
     else if(!this.allowedInputs.has(input.value))throw new Error('Choose your local video with the file picker.');
-    const now=this.store.now();const title=input.kind==='local'?path.basename(input.value):'Linked video';const job:Job={id:randomUUID(),name:input.name?.trim()||title,title,input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
+    const now=this.store.now();const title=input.kind==='local'?path.basename(input.value):'Linked video';const job:Job={id:randomUUID(),name:input.name?.trim()||undefined,title,input,stage:'queued',checkpoint:'queued',progress:0,message:'Ready to process',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
     this.store.put(job);this.changed();this.pump();return job.id;
   }
   pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job)void this.process(job);}

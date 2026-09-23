@@ -10,7 +10,7 @@ import {DAY} from '../electron/core';
 import type {Job} from '../shared/types';
 test('named projects keep their chosen name separately from the source title',async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-name-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});service.stopping=true;service.readiness=async()=>({ready:true,missing:[]});
- try{const id=await service.create({kind:'url',value:'https://youtu.be/example',name:'  My podcast  '});const job=store.get(id);assert.equal(job?.name,'My podcast');assert.equal(job?.title,'Linked video');assert.equal(job?.stage,'queued');}
+ try{const id=await service.create({kind:'url',value:'https://youtu.be/example',name:'  My podcast  '});const job=store.get(id)!;assert.equal(job.name,'My podcast');assert.equal(job.title,'Linked video');assert.equal(job.stage,'queued');service.update(job,{title:'Downloaded video title'});assert.equal(store.get(id)?.name,'My podcast');const unnamedId=await service.create({kind:'url',value:'https://youtu.be/example',name:'  '});const unnamed=store.get(unnamedId)!;service.update(unnamed,{title:'Detected source title'});const restored=store.get(unnamedId)!;assert.equal(restored.name||restored.title,'Detected source title');}
  finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
 });
 test('expired completed workspace is cleaned, unsaved reels are retained',async()=>{
