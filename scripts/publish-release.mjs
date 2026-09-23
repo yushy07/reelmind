@@ -58,16 +58,16 @@ async function main() {
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
-- **Dedicated Anime Studio Workspace:** Completely separate engine for full 24-minute Japanese/English anime episodes and AMV creation, keeping Podcast Studio completely intact.
-- **Deep Preprocessing Engine:** Scene/shot detection with PySceneDetect & FFmpeg, audio extraction, frame indexing, and Librosa music rhythm analysis (BPM, beats, downbeats, onset energy curves).
-- **Multi-Signal Visual & Audio Intelligence:** OpenCV motion deltas, Laplacian sharpness, anime face detection/prominence scoring, audio transients, and dialogue mapping.
-- **Impact Frame Detection:** Pinpoints the exact climax hit moment within each shot to align with musical beat drops.
-- **3–5 Diverse AMV Concepts:** Gemini Free tier evaluation + local diversity optimizer with automatic offline/quota fallback.
-- **AMV Edit Planner & Smart 9:16 Reframing:** Beat-synchronized cut sequencing (Intro/Build → Climax Hit → Payoff) and dynamic character-centered camera reframing with smooth pan & zoom.
-- **Advanced Neural Effects & NVENC Rendering:** Velocity ramping with temporal smoothing, dual-stream character isolation & depth-of-field background blur, flash on impact, and hardware-accelerated NVENC 1080×1920 MP4 rendering.
-- **Interactive Studio Controls:** Video player previews, live style switcher (Hard Beat, Velocity, Slow Burn, Dialogue), dual-track audio mixer sliders, and 1-click instant re-rendering.
-- **RTX 3050 VRAM Management:** Strict two-pass memory lifecycle with immediate CUDA cache and model disposal preventing VRAM OOM.
-- **Crash Recovery & Checkpointing:** Comprehensive SHA-256 checkpoints and automated recovery across scene, music, analysis, and render stages.
+### What's New in v0.3.1:
+- **Complete Studio UI Overhaul:** Professional dark obsidian and glassmorphic theme with physical specular bevels, layered surfaces, and ambient radial mesh lighting.
+- **Studio-Specific Visual Palettes:**
+  - **🎙️ Podcast Studio:** Amethyst & Electric Violet accents with warm ambient glow.
+  - **🎌 Anime AMV Studio:** Cyberpunk Neon Crimson & Beat-Sync Cyan rhythm highlights.
+- **Modular Component Architecture:** Refactored into clean, type-safe React components (Sidebar, Header, Overview, NewProjectPodcast, NewProjectAnime, ProjectDetail, AnimeReelCard, Library, SettingsView).
+- **Enhanced Studio Controls:** Tactile segmented studio mode switcher, neon-track audio mixer sliders for Voice/SFX and Music, dynamic style selector pills, and one-click re-render triggers.
+- **Live Radar Activity Pulse:** Real-time dual-ring radar beacon on header and hardware status indicators.
+- **Projects Library Repository:** Live project search, studio filtering (All / Podcast / Anime), and status chips (Completed / Active / Attention).
+- **Decorated Documentation & Showcases:** Refreshed README and UI showcase screenshots.
 
 Source commit: ${commit}
 

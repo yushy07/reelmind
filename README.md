@@ -5,7 +5,7 @@
 # REELMIND STUDIO
 ### A Personal, Local-First Instagram Reels & Anime AMV Studio for Windows
 
-[![Release](https://img.shields.io/badge/Release-v0.3.0--prerelease-8b5cf6?style=for-the-badge&logo=github)](https://github.com/yushy07/reelmind/releases/tag/v0.3.0)
+[![Release](https://img.shields.io/badge/Release-v0.3.1--prerelease-8b5cf6?style=for-the-badge&logo=github)](https://github.com/yushy07/reelmind/releases/tag/v0.3.1)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20(64--bit)-0078d4?style=for-the-badge&logo=windows)](https://github.com/yushy07/reelmind)
 [![License](https://img.shields.io/badge/License-Apache%202.0-10b981?style=for-the-badge)](LICENSE)
 [![Local First](https://img.shields.io/badge/Processing-100%25%20Offline%20Local-f43f5e?style=for-the-badge&logo=nvidia)](SECURITY.md)
@@ -95,7 +95,7 @@ The application interface is styled with a modular, modern desktop aesthetic:
 
 ## 🚀 Quick Download
 
-1. Download **`REELMIND.Setup.0.3.0.exe`** from the [v0.3.0 Release](https://github.com/yushy07/reelmind/releases/tag/v0.3.0).
+1. Download **`REELMIND.Setup.0.3.1.exe`** from the [v0.3.1 Release](https://github.com/yushy07/reelmind/releases/tag/v0.3.1).
 2. Run the installer (NSIS single-installer bundled with local engine, models, and FFmpeg).
 3. Launch **REELMIND** from your Start menu or desktop shortcut.
 4. Drop your video, choose your studio mode, and let your workstation do the heavy lifting!
