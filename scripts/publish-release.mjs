@@ -58,6 +58,7 @@ async function main() {
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
+- Refined project creation, progress/recovery visibility, and finished-Reels results interface
 - Bundled local MiniLM semantic clip diversity with lexical fallback
 - Optional verified Whisper Turbo download; Standard remains default
 - Optional plain-text or timestamped SRT/VTT transcript paste in New Project
