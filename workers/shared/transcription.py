@@ -96,6 +96,7 @@ def run_transcription(
 
         return result
 
+    model = None
     result = None
     if gpu:
         try:
@@ -106,10 +107,25 @@ def run_transcription(
         except Exception:
             if emit:
                 emit(fallback='GPU speech unavailable; using CPU instead', message='GPU speech unavailable · continuing on CPU')
+        finally:
+            if model is not None:
+                del model
+                model = None
+                import gc
+                gc.collect()
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
     if result is None:
         model = WhisperModel(model_path, device='cpu', compute_type='int8', cpu_threads=4, local_files_only=True)
         result = run_model(model, 'CPU')
+        del model
+        import gc
+        gc.collect()
 
     if not result:
         raise ValueError('No clear speech found in this video.')

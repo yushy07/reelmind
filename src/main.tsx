@@ -1,7 +1,7 @@
 import React,{ useEffect,useState } from 'react';
 import {createRoot} from 'react-dom/client';
 import {Sparkles,Plus,House,Clapperboard,Settings2,ArrowUpRight,ArrowRight,Upload,Link2,Check,ChevronRight,Film,FolderDown,Play,Pause,RotateCcw,Trash2,HardDrive,Languages,Monitor,ShieldCheck,Cpu,LoaderCircle,AlertCircle,X,Scissors,AudioLines,ScanFace,CheckCircle2,Download,Mic,Music} from 'lucide-react';
-import type {API,Status,Job,Settings,Provider,CreateInput,AnimeCreateInput} from '../shared/types';
+import type {API,Status,Job,Settings,Provider,CreateInput,AnimeCreateInput,AnimeEditStyle,AnimeRerenderOptions} from '../shared/types';
 import './styles.css';
 import './updates.css';
 import {TranscriptionSettings} from './TranscriptionSettings';
@@ -23,7 +23,7 @@ function App(){
   const completed=studioJobs.filter(j=>j.stage==='completed').length;
   const active=data?.jobs.find(j=>(j.studio==='anime'?animeStages:podcastStages).slice(0,-1).includes(j.stage));
   return <div className="app"><aside><a className="brand" onClick={()=>go('home')}><span className="brand-icon"><img src={brandMark} width={36} height={36} alt=""/></span>reelmind<span className="brand-dot">.</span></a><div className="studio-switcher" role="tablist" aria-label="Studio mode"><button type="button" className={'studio-pill'+(studio==='podcast'?' active':'')} onClick={()=>{setStudio('podcast');go('home');}}><Mic size={14}/>Podcast</button><button type="button" className={'studio-pill'+(studio==='anime'?' active':'')} onClick={()=>{setStudio('anime');go('home');}}><Sparkles size={14}/>Anime</button></div><div className="workspace-label">{studio==='anime'?'ANIME STUDIO':'PODCAST STUDIO'} <span>V1</span></div><button className="new-button" onClick={()=>go('new')}><Plus size={18}/>New project<kbd>＋</kbd></button><div className="nav-label">STUDIO</div><nav>{[[House,'home','Overview'],[Film,'library','Your Projects'],[Settings2,'settings','Settings']].map(([Icon,id,text]:any)=><button key={id} className={page===id&&!selected?'active':''} onClick={()=>go(id)}><Icon size={19}/>{text}{id==='library'&&completed>0&&<span className="count">{completed}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="local-card"><span className="green-dot"/> Your machine. Your studio.<p>Local processing.<br/>No subscription needed.</p><span className="mini-tag">WINDOWS DESKTOP</span></div><div className="profile"><span>A</span><div>Personal studio<small>{studio==='anime'?'Anime AMV Studio':'Made for your next great Reel'}</small></div></div></div></aside><main><header><div>Workspace <ChevronRight size={13}/> <span>{job?'Project':page==='home'?'Overview':page==='new'?'New project':page==='library'?'Your Projects':'Settings'}</span></div><span className="header-status"><span className={active?'pulse-dot':'green-dot'}/>{active?'Studio is working':'Local-first studio'}</span></header>{error&&<div className="alert" role="alert"><AlertCircle size={18}/><span>{error}</span><button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{toast&&<div className="toast" role="status">{toast}<button onClick={()=>setToast('')} aria-label="Dismiss message"><X size={16}/></button></div>}
-  <div className="page">{!api?<div className="empty"><Monitor size={40}/><h2>Open REELMIND on your desktop</h2><p>This page is the app interface. Launch the desktop app to process videos.</p></div>:!data?<div className="empty"><LoaderCircle className="spin"/><p>Opening your studio…</p></div>:job?<Project job={job} busy={busy} onAction={action=>act(()=>api.action(job.id,action))} onSave={()=>act(async()=>{const dest=await api.save(job.id);if(dest)setToast('Your Reels are saved in '+dest);})} back={()=>setSelected(null)}/>:page==='new'?(studio==='anime'?<AnimeNewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{if(api.createAnime)setSelected(await api.createAnime(input));})} pickVideo={()=>api.pickVideo()} pickAudio={()=>api.pickAudio?api.pickAudio():Promise.resolve(null)}/>:<NewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{setSelected(await api.create(input));})} pick={()=>api.pickVideo()}/>):page==='settings'?<Preferences data={data} busy={busy} save={(s,k)=>act(async()=>{await api.settings(s,k);setToast('Settings saved securely.');})} setup={()=>act(()=>api.setup())}/>:<><div className="page-heading"><div><div className="eyebrow">{studio==='anime'?'ANIME STUDIO':'YOUR CREATIVE SPACE'}</div><h1>{page==='home'?(studio==='anime'?'High-energy anime.':'Long conversations.'):'Your Projects.'}{page==='home'&&<><br/><span>{studio==='anime'?'Beat-synced edits.':'Great little moments.'}</span></>}</h1><p>{page==='home'?(studio==='anime'?'Turn 24-minute episodes and music tracks into viral 9:16 edits.':'Turn the best parts of your videos into scroll-stopping Reels.'):'Finished clips, ready for their next chapter.'}</p></div><span className="edition">{studio==='anime'?'ANIME / 01':'REELMIND / 01'}</span></div>{page==='home'&&<><section className="hero"><div className="hero-copy"><span className="hero-label"><Sparkles size={14}/> {studio==='anime'?'ANIME AMV STUDIO':'YOUR PERSONAL AI EDITOR'}</span><h2>{studio==='anime'?'Anime episodes.\nPrecision cuts.':'Big ideas.\nSmall screen.'}</h2><p>{studio==='anime'?'Import an episode and music track. Detect shots and beats.\nLet Anime Studio plan the edit.':'Drop in a video. Find the moments.\nLet your studio take it from there.'}</p><button className="primary" onClick={()=>go('new')}>{studio==='anime'?'Start Anime project':'Create your first Reel'} <ArrowUpRight size={19}/></button><div className="hero-foot">{studio==='anime'?'BEAT MATCHED · IMPACT SYNCED · GPU ACCELERATED':'NO TIMELINE. NO HEAVY LIFTING.'}</div></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="source-card"><div className="video-art"><div className="person p-one"/><div className="person p-two"/><span className="play-circle"><Play size={17} fill="currentColor"/></span></div><div className="source-footer"><AudioLines size={24}/><div className="waveform">{Array.from({length:27},(_,i)=><i key={i} style={{height:8+(i*17%23)}}/>)}</div><span>01:24:08</span></div></div><div className="reel-card"><span className="reel-label"><span className="green-dot"/> THE MOMENT</span><div className="portrait-art"><div className="person p-three"/></div><div className="caption-art">ONE IDEA.<br/><em>EVERYTHING</em><br/>CHANGES.</div><div className="reel-bottom"><span>9:16</span><Sparkles size={14}/><span>00:42</span></div></div><span className="float-tag tag-one"><ScanFace size={15}/>Smart framing</span><span className="float-tag tag-two"><Check size={14}/>Captions, handled.</span><span className="art-note">ILLUSTRATED WORKFLOW</span></div></section><div className="features"><div><span className="feature-icon"><ScanFace/></span><section><h3>Find the good stuff</h3><p>Your whole video. Its strongest moments.</p></section></div><div><span className="feature-icon"><Languages/></span><section><h3>Speak your language</h3><p>English, Hindi / Hinglish & Japanese.</p></section></div><div><span className="feature-icon"><Scissors/></span><section><h3>Ready for the feed</h3><p>Vertical. Captioned. Full of energy.</p></section></div></div></>}
+  <div className="page">{!api?<div className="empty"><Monitor size={40}/><h2>Open REELMIND on your desktop</h2><p>This page is the app interface. Launch the desktop app to process videos.</p></div>:!data?<div className="empty"><LoaderCircle className="spin"/><p>Opening your studio…</p></div>:job?<Project job={job} busy={busy} onAction={action=>act(()=>api.action(job.id,action))} onSave={()=>act(async()=>{const dest=await api.save(job.id);if(dest)setToast('Your Reels are saved in '+dest);})} onRerender={(conceptId,opts)=>act(async()=>{if(api?.rerenderAnime)await api.rerenderAnime(job.id,conceptId,opts);setToast('AMV edit re-rendered successfully.');})} back={()=>setSelected(null)}/>:page==='new'?(studio==='anime'?<AnimeNewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{if(api.createAnime)setSelected(await api.createAnime(input));})} pickVideo={()=>api.pickVideo()} pickAudio={()=>api.pickAudio?api.pickAudio():Promise.resolve(null)}/>:<NewProject ready={data.runtime.ready} busy={busy} settings={()=>go('settings')} onCreate={input=>act(async()=>{setSelected(await api.create(input));})} pick={()=>api.pickVideo()}/>):page==='settings'?<Preferences data={data} busy={busy} save={(s,k)=>act(async()=>{await api.settings(s,k);setToast('Settings saved securely.');})} setup={()=>act(()=>api.setup())}/>:<><div className="page-heading"><div><div className="eyebrow">{studio==='anime'?'ANIME STUDIO':'YOUR CREATIVE SPACE'}</div><h1>{page==='home'?(studio==='anime'?'High-energy anime.':'Long conversations.'):'Your Projects.'}{page==='home'&&<><br/><span>{studio==='anime'?'Beat-synced edits.':'Great little moments.'}</span></>}</h1><p>{page==='home'?(studio==='anime'?'Turn 24-minute episodes and music tracks into viral 9:16 edits.':'Turn the best parts of your videos into scroll-stopping Reels.'):'Finished clips, ready for their next chapter.'}</p></div><span className="edition">{studio==='anime'?'ANIME / 01':'REELMIND / 01'}</span></div>{page==='home'&&<><section className="hero"><div className="hero-copy"><span className="hero-label"><Sparkles size={14}/> {studio==='anime'?'ANIME AMV STUDIO':'YOUR PERSONAL AI EDITOR'}</span><h2>{studio==='anime'?'Anime episodes.\nPrecision cuts.':'Big ideas.\nSmall screen.'}</h2><p>{studio==='anime'?'Import an episode and music track. Detect shots and beats.\nLet Anime Studio plan the edit.':'Drop in a video. Find the moments.\nLet your studio take it from there.'}</p><button className="primary" onClick={()=>go('new')}>{studio==='anime'?'Start Anime project':'Create your first Reel'} <ArrowUpRight size={19}/></button><div className="hero-foot">{studio==='anime'?'BEAT MATCHED · IMPACT SYNCED · GPU ACCELERATED':'NO TIMELINE. NO HEAVY LIFTING.'}</div></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="source-card"><div className="video-art"><div className="person p-one"/><div className="person p-two"/><span className="play-circle"><Play size={17} fill="currentColor"/></span></div><div className="source-footer"><AudioLines size={24}/><div className="waveform">{Array.from({length:27},(_,i)=><i key={i} style={{height:8+(i*17%23)}}/>)}</div><span>01:24:08</span></div></div><div className="reel-card"><span className="reel-label"><span className="green-dot"/> THE MOMENT</span><div className="portrait-art"><div className="person p-three"/></div><div className="caption-art">ONE IDEA.<br/><em>EVERYTHING</em><br/>CHANGES.</div><div className="reel-bottom"><span>9:16</span><Sparkles size={14}/><span>00:42</span></div></div><span className="float-tag tag-one"><ScanFace size={15}/>Smart framing</span><span className="float-tag tag-two"><Check size={14}/>Captions, handled.</span><span className="art-note">ILLUSTRATED WORKFLOW</span></div></section><div className="features"><div><span className="feature-icon"><ScanFace/></span><section><h3>Find the good stuff</h3><p>Your whole video. Its strongest moments.</p></section></div><div><span className="feature-icon"><Languages/></span><section><h3>Speak your language</h3><p>English, Hindi / Hinglish & Japanese.</p></section></div><div><span className="feature-icon"><Scissors/></span><section><h3>Ready for the feed</h3><p>Vertical. Captioned. Full of energy.</p></section></div></div></>}
   {!data.runtime.ready&&<div className="setup-banner"><Cpu size={24}/><div><strong>Let’s get your local engine ready</strong><p>A one-time download gives your studio speech recognition, face tracking and fonts.</p></div><button className="secondary" onClick={()=>go('settings')}>Set up studio <ArrowRight size={16}/></button></div>}
   <ProjectGroups jobs={studioJobs} page={page==='home'?'home':'library'} open={setSelected} newProject={()=>go('new')}/><footer><ShieldCheck size={14}/>Originals stay untouched. Your creativity stays yours.<span>CRAFTED FOR THE MOMENT</span></footer></> }</div></main></div>;
 }
@@ -86,7 +86,123 @@ function NewProject({ready,busy,settings,onCreate,pick}:{ready:boolean;busy:bool
     </div><p className="privacy"><ShieldCheck size={15}/>Your original video stays untouched. Optional cloud analysis receives transcript text only.</p>
   </div>;
 }
-function Project({job,busy,onAction,onSave,back}:{job:Job;busy:boolean;onAction:(action:'pause'|'resume'|'delete')=>void;onSave:()=>void;back:()=>void}){
+function AnimeReelCard({job,reel,index,busy,onRerender}:{job:Job;reel:Job['outputs'][0];index:number;busy:boolean;onRerender:(conceptId:number,options:AnimeRerenderOptions)=>Promise<void>;}){
+  const conceptId=parseInt(reel.id,10);
+  const concept=job.animeAnalysis?.concepts?.find(c=>c.id===conceptId);
+  const [style,setStyle]=useState<AnimeEditStyle>(concept?.style||'hard_beat_drop');
+  const [sourceAudio,setSourceAudio]=useState(40);
+  const [music,setMusic]=useState(100);
+  const [localBusy,setLocalBusy]=useState(false);
+
+  const handleRerender=async()=>{
+    if(localBusy||busy)return;
+    setLocalBusy(true);
+    try{
+      await onRerender(conceptId,{
+        style,
+        sourceAudioMix:sourceAudio/100,
+        musicMix:music/100
+      });
+    }finally{
+      setLocalBusy(false);
+    }
+  };
+
+  const isWorking=localBusy||busy;
+
+  return <article className="anime-output-card" key={reel.id}>
+    <video controls preload="metadata" key={reel.planHash||reel.id} src={`reel://output/${job.id}/${reel.id}?h=${reel.planHash||''}`} aria-label={`AMV Edit ${index+1}: ${reel.title}`}/>
+    <div className="anime-output-body">
+      <div className="anime-output-meta">
+        <span className="eyebrow">AMV {String(index+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span>
+        {concept&&<span className={'candidate-tag '+concept.category}>{concept.category.toUpperCase()}</span>}
+      </div>
+      <h3 className="anime-output-title">{reel.title}</h3>
+      {reel.reason&&<p className="anime-output-reason">{reel.reason}</p>}
+      
+      <div className="anime-studio-controls">
+        <div className="anime-control-group">
+          <div className="anime-control-header">
+            <span>Edit Style</span>
+            <strong>{style.replace(/_/g,' ')}</strong>
+          </div>
+          <div className="style-pills-row">
+            {([
+              ['hard_beat_drop','⚡ Hard Beat'],
+              ['velocity_ramp','🚀 Velocity'],
+              ['slow_burn','🌌 Slow Burn'],
+              ['dialogue_pause','💬 Dialogue']
+            ] as const).map(([val,name])=>(
+              <button
+                type="button"
+                key={val}
+                className={'style-pill-btn'+(style===val?' active':'')}
+                onClick={()=>setStyle(val)}
+                disabled={isWorking}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="anime-control-group">
+          <div className="anime-control-header">
+            <span>Audio Mixer</span>
+            <small>{sourceAudio}% Voice / {music}% Music</small>
+          </div>
+          <div className="audio-sliders">
+            <label className="slider-row">
+              <div className="slider-row-labels">
+                <span>Anime Voice & SFX</span>
+                <strong>{sourceAudio}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={sourceAudio}
+                onChange={e=>setSourceAudio(parseInt(e.target.value,10))}
+                disabled={isWorking}
+              />
+            </label>
+            <label className="slider-row">
+              <div className="slider-row-labels">
+                <span>Music Track</span>
+                <strong>{music}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={music}
+                onChange={e=>setMusic(parseInt(e.target.value,10))}
+                disabled={isWorking}
+              />
+            </label>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="rerender-btn"
+          disabled={isWorking}
+          onClick={handleRerender}
+        >
+          {localBusy?<><LoaderCircle className="spin" size={14}/> Re-rendering AMV...</>:<><Sparkles size={14}/> Re-render AMV (~3s)</>}
+        </button>
+      </div>
+
+      <div className="anime-output-footer">
+        <small>{reel.savedPath?<><CheckCircle2 size={12}/> Saved to folder</>:'Ready to save'}</small>
+        <span>9:16 Vertical HD</span>
+      </div>
+    </div>
+  </article>;
+}
+function Project({job,busy,onAction,onSave,onRerender,back}:{job:Job;busy:boolean;onAction:(action:'pause'|'resume'|'delete')=>void;onSave:()=>void;onRerender:(conceptId:number,options:AnimeRerenderOptions)=>Promise<void>;back:()=>void}){
   const isAnime=job.studio==='anime';
   const currentStages=isAnime?animeStages:podcastStages;
   const done=job.stage==='completed'||job.stage==='expired',recover=['paused','failed'].includes(job.stage);
@@ -142,7 +258,7 @@ function Project({job,busy,onAction,onSave,back}:{job:Job;busy:boolean;onAction:
         </div>
       </div>}
     </div>}
-    {job.outputs.length>0?<section className="results-section"><div className="results-heading"><div><span className="eyebrow">{done?'RENDER COMPLETE':'FINISHED SO FAR'}</span><h2>{job.outputs.length} {job.outputs.length===1?'Reel':'Reels'} ready</h2><p>{savedCount===job.outputs.length?'All Reels are saved in your chosen folder.':`${savedCount} saved · ${job.outputs.length-savedCount} ready to save`}</p></div>{done&&<button className="primary" disabled={busy||savedCount===job.outputs.length} onClick={onSave}>{busy?<LoaderCircle className="spin" size={17}/>:<FolderDown size={17}/>} {savedCount===job.outputs.length?'All Reels saved':'Save Reels'}</button>}</div><div className="reel-grid">{job.outputs.map((reel,i)=><article className="output-card" key={reel.id}><video controls preload="metadata" src={`reel://output/${job.id}/${reel.id}`} aria-label={`Reel ${i+1}: ${reel.title}`}/><div><span className="eyebrow">REEL {String(i+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span><h3>{reel.title}</h3><small>{reel.savedPath?<><CheckCircle2 size={13}/>Saved to your folder</>:'Ready to save'}</small></div></article>)}</div><p className="privacy"><FolderDown size={15}/>Choose a folder outside REELMIND. Files are verified before internal copies are removed.</p></section>:done&&!isAnime&&<div className="result-empty"><Clapperboard size={24}/><h2>No Reels in this project</h2><p>{job.message}</p></div>}
+    {job.outputs.length>0?<section className="results-section"><div className="results-heading"><div><span className="eyebrow">{done?'RENDER COMPLETE':'FINISHED SO FAR'}</span><h2>{job.outputs.length} {job.outputs.length===1?'Reel':'Reels'} ready</h2><p>{savedCount===job.outputs.length?'All Reels are saved in your chosen folder.':`${savedCount} saved · ${job.outputs.length-savedCount} ready to save`}</p></div>{done&&<button className="primary" disabled={busy||savedCount===job.outputs.length} onClick={onSave}>{busy?<LoaderCircle className="spin" size={17}/>:<FolderDown size={17}/>} {savedCount===job.outputs.length?'All Reels saved':'Save Reels'}</button>}</div><div className="reel-grid">{job.outputs.map((reel,i)=>isAnime?<AnimeReelCard key={reel.id} job={job} reel={reel} index={i} busy={busy} onRerender={onRerender}/>:<article className="output-card" key={reel.id}><video controls preload="metadata" src={`reel://output/${job.id}/${reel.id}`} aria-label={`Reel ${i+1}: ${reel.title}`}/><div><span className="eyebrow">REEL {String(i+1).padStart(2,'0')} <span>{duration(reel.duration)}</span></span><h3>{reel.title}</h3><small>{reel.savedPath?<><CheckCircle2 size={13}/>Saved to your folder</>:'Ready to save'}</small></div></article>)}</div><p className="privacy"><FolderDown size={15}/>Choose a folder outside REELMIND. Files are verified before internal copies are removed.</p></section>:done&&!isAnime&&<div className="result-empty"><Clapperboard size={24}/><h2>No Reels in this project</h2><p>{job.message}</p></div>}
     <button className="danger-text" disabled={busy} onClick={()=>onAction('delete')}><Trash2 size={15}/>Delete project</button>
   </div>;
 }

@@ -47,6 +47,15 @@ app.whenReady().then(async()=>{
   handle('pick-audio',async()=>{const result=await dialog.showOpenDialog(window,{title:'Choose a music track',properties:['openFile'],filters:[{name:'Audio',extensions:['mp3','wav','aac','flac','m4a','ogg']}]});const file=result.filePaths[0];if(result.canceled||!file)return null;service.allowedInputs.add(file);return file;});
   handle('create',async input=>service.create(z.object({kind:z.enum(['local','url']),value:z.string().min(1).max(4096),name:z.string().trim().max(80).optional(),pastedTranscript:z.string().max(200_000).optional()}).strict().parse(input) as CreateInput));
   handle('create-anime',async input=>service.createAnime(z.object({kind:z.literal('local'),episodePath:z.string().min(1).max(4096),musicPath:z.string().min(1).max(4096),language:z.enum(['ja','en']),name:z.string().trim().max(80).optional(),outputAspect:z.enum(['9:16','16:9','1:1']).optional()}).strict().parse(input)));
+  handle('rerender-anime',async(jobId,conceptId,options)=>service.rerenderAnime(
+    z.string().uuid().parse(jobId),
+    z.number().int().min(1).parse(conceptId),
+    z.object({
+      style:z.enum(['hard_beat_drop','slow_burn','dialogue_pause','velocity_ramp']).optional(),
+      sourceAudioMix:z.number().min(0).max(1).optional(),
+      musicMix:z.number().min(0).max(1).optional()
+    }).strict().parse(options||{})
+  ));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
   handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
   handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);if(next.transcriptionMode==='turbo'&&!service.models.state.ready)throw new Error('Download and verify Turbo before selecting it.');const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});

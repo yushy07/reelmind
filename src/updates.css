@@ -185,3 +185,33 @@ textarea:focus-visible,summary:focus-visible{outline:2px solid #d6b8ff;outline-o
 .concept-card p{margin:0;font-size:12px;color:#b7a9ca;line-height:1.45;flex:1}
 .concept-footer{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#9c8dae;border-top:1px solid #2d243d;padding-top:10px;margin-top:2px}
 .concept-score{font-weight:700;color:#c4a1ff;font-size:11px}
+
+/* Anime Output Card & Interactive Controls (Milestone 4) */
+.anime-output-card{border:1px solid #4a365f;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#1d1627 0%,#15101d 100%);display:flex;flex-direction:column;transition:all .2s ease}
+.anime-output-card:hover{border-color:#7b58a7;box-shadow:0 4px 20px rgba(123,88,167,0.15)}
+.anime-output-card video{width:100%;aspect-ratio:9/16;background:#000;display:block}
+.anime-output-body{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.anime-output-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.anime-output-meta .eyebrow{margin:0}
+.anime-output-title{font-size:13px;font-weight:700;color:#f7f1fd;margin:0;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:36px}
+.anime-output-reason{font-size:10px;color:#ad9cbd;margin:0;letter-spacing:.02em}
+.anime-studio-controls{background:#140e1b;border:1px solid #372846;border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.anime-control-group{display:flex;flex-direction:column;gap:6px}
+.anime-control-header{display:flex;align-items:center;justify-content:space-between;font-size:10px;font-weight:700;color:#d1bfff;letter-spacing:.05em;text-transform:uppercase}
+.anime-control-header small{color:#a491bc;font-weight:500;letter-spacing:0;font-size:10px}
+.anime-control-header strong{color:#e8d7ff;font-size:10px;text-transform:none}
+.style-pills-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.style-pill-btn{display:flex;align-items:center;justify-content:center;gap:4px;background:#20172c;border:1px solid #3d2f4f;border-radius:6px;color:#b7a6cb;font-size:11px;font-weight:600;padding:6px 4px;cursor:pointer;transition:all .16s ease;white-space:nowrap}
+.style-pill-btn:hover:not(:disabled){border-color:#6a498f;color:#fff}
+.style-pill-btn.active{background:#3c2459;border-color:#a879e6;color:#faedff;box-shadow:0 0 0 1px #a879e6}
+.style-pill-btn:disabled{opacity:.5;cursor:not-allowed}
+.audio-sliders{display:flex;flex-direction:column;gap:8px}
+.slider-row{display:flex;flex-direction:column;gap:3px;margin:0!important}
+.slider-row-labels{display:flex;justify-content:space-between;font-size:10px;color:#a291b5}
+.slider-row-labels strong{color:#e5d8f6}
+.slider-row input[type="range"]{width:100%;accent-color:#a879e6;height:4px;cursor:pointer;background:#2c1f3b;border-radius:2px;margin:3px 0}
+.rerender-btn{display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#7c4bb9 0%,#582b92 100%);border:1px solid #a46fdf;border-radius:7px;color:#fff;font-size:11px;font-weight:700;padding:8px 10px;cursor:pointer;transition:all .18s ease;box-shadow:0 2px 8px rgba(124,75,185,0.35);margin-top:2px}
+.rerender-btn:hover:not(:disabled){background:linear-gradient(135deg,#8d56d1 0%,#6833ad 100%);box-shadow:0 4px 12px rgba(141,86,209,0.45)}
+.rerender-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.anime-output-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;border-top:1px solid #2d223a;font-size:10px;color:#9f91af}
+.anime-output-footer small{display:flex;align-items:center;gap:5px;color:#abd3b9}

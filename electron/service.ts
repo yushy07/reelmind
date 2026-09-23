@@ -10,7 +10,7 @@ import { ModelManager, TURBO } from './models';
 import { transcribeWithFallback } from './transcription';
 import { run } from './process';
 import { probe, render } from './media';
-import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate, AnimeEditConcept } from '../shared/types';
+import type { Job, Stage, Transcript, Candidate, Frame, Provider, CreateInput, AnimeCreateInput, AnimeShot, MusicMap, AnimeEpisodeAnalysis, AnimeCandidate, AnimeEditConcept, AnimeRerenderOptions } from '../shared/types';
 import { selectAnimeMoments } from './anime/selection';
 import { planAnimeEdit } from './anime/planner';
 import { renderAnimeAMV } from './anime/renderer';
@@ -257,6 +257,83 @@ export class Service {
       this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});
     }finally{
       this.active.delete(job.id);this.pump();
+    }
+  }
+  async rerenderAnime(id:string,conceptId:number,options:AnimeRerenderOptions={}){
+    const job=this.store.get(id);if(!job||job.studio!=='anime')throw new Error('Anime project not found.');
+    if(this.active.has(id))throw new Error('Project is currently busy processing.');
+    const work=this.work(job.id);const output=this.out(job.id);
+    const episodeSource=path.join(work,'episode'+path.extname(job.input.value).toLowerCase());
+    if(!await exists(episodeSource))throw new Error('Source episode file is no longer in workspace.');
+    const musicPath=job.input.musicPath||'';
+    const musicSource=path.join(work,'music'+path.extname(musicPath).toLowerCase());
+    const musicMapFile=path.join(work,'music_map.json');
+    const shotsFile=path.join(work,'shots.json');
+    const conceptsFile=path.join(work,'edit_concepts.json');
+    if(!await exists(conceptsFile)||!await exists(musicMapFile)||!await exists(shotsFile)){
+      throw new Error('Analysis data files missing for this project.');
+    }
+    const musicMap:MusicMap=JSON.parse(await fs.readFile(musicMapFile,'utf8'));
+    const shots:AnimeShot[]=JSON.parse(await fs.readFile(shotsFile,'utf8'));
+    const concepts:AnimeEditConcept[]=JSON.parse(await fs.readFile(conceptsFile,'utf8'));
+    const concept=concepts.find(c=>c.id===conceptId);
+    if(!concept)throw new Error(`AMV Concept #${conceptId} not found.`);
+
+    if(options.style){
+      concept.style=options.style;
+      await atomicJSON(conceptsFile, concepts);
+      if(job.animeAnalysis?.concepts){
+        const jc=job.animeAnalysis.concepts.find(c=>c.id===conceptId);
+        if(jc)jc.style=options.style;
+      }
+    }
+    const plan=planAnimeEdit(concept,musicMap,shots,30);
+    if(options.sourceAudioMix!==undefined){
+      plan.audio.sourceAudioMix=Math.max(0,Math.min(1,options.sourceAudioMix));
+    }
+    if(options.musicMix!==undefined){
+      plan.audio.musicMix=Math.max(0,Math.min(1,options.musicMix));
+    }
+
+    const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;
+    const clipId=String(concept.id).padStart(2,'0');const file=path.join(output,`reelmind_${clipId}.mp4`);
+    const planHash=fingerprint({plan,quality:this.store.settings().quality,opts:options});
+    const clipWork=path.join(work,'amv_'+clipId);
+    await fs.mkdir(clipWork,{recursive:true});
+    await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
+
+    this.update(job,{message:`Re-rendering AMV ${concept.id} · ${concept.title} (${concept.style.replace(/_/g,' ')})`});
+    try{
+      const partial=file+'.partial.mp4';
+      await renderAnimeAMV(
+        this.runtime,
+        episodeSource,
+        musicPath?musicSource:undefined,
+        plan,
+        partial,
+        clipWork,
+        this.store.settings().quality,
+        this.renderHardware,
+        signal,
+        progress=>this.update(job,{message:`Re-rendering AMV ${concept.id} · ${Math.floor(progress*100)}%`}),
+        message=>this.update(job,{fallbacks:[...new Set([...(job.fallbacks||[]),message])],message})
+      );
+      await fs.rename(partial,file);
+      job.outputs=job.outputs.filter(r=>r.id!==clipId);
+      job.outputs.push({
+        id:clipId,
+        title:concept.title,
+        duration:plan.duration,
+        file,
+        reason:`${concept.category.toUpperCase()} · ${concept.style.replace(/_/g,' ')} (${concept.qualityScore}% match)`,
+        planHash
+      });
+      job.outputs.sort((a,b)=>a.id.localeCompare(b.id));
+      this.update(job,{message:`AMV ${concept.id} re-rendered with ${concept.style.replace(/_/g,' ')}`,outputs:job.outputs,animeAnalysis:job.animeAnalysis});
+      this.notify(job);
+    }finally{
+      this.active.delete(job.id);
+      this.pump();
     }
   }
   async save(id:string,dir:string,blocked:string[]){

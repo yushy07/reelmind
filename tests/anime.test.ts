@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import os from 'node:os';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, AnimeShotCut, Settings } from '../shared/types';
+import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, AnimeShotCut, Settings, Job } from '../shared/types';
+import { Service } from '../electron/service';
+import { Store } from '../electron/storage';
 import {
   buildGeminiEvaluationPrompt,
   animeEvaluationResponseSchema,
@@ -983,4 +986,226 @@ test('renderAnimeAMV renders valid vertical 1080x1920 MP4 on test media', async 
     await fs.rm(tmpWork, { recursive: true, force: true }).catch(() => {});
   }
 });
+
+test('service.rerenderAnime re-plans and re-renders single concept with updated style & audio mix in-place', async () => {
+  const root = path.join(__dirname, '..');
+  const runtime = path.join(root, 'runtime');
+  const testVideo = path.join(root, '.test-data', 'render', 'test-source.mp4');
+  const testAudio = path.join(root, '.test-data', 'pipeline', 'work', 'fb912bdc-29d3-49dd-b3ef-b9e388aacaa0', 'audio.wav');
+
+  if (!await fs.stat(testVideo).catch(() => null) || !await fs.stat(path.join(runtime, 'ffmpeg.exe')).catch(() => null)) {
+    return; // skip if test video or ffmpeg not present in environment
+  }
+
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'reelmind-rerender-'));
+  const store = new Store(path.join(tmpRoot, 'db.sqlite'));
+  const service = new Service(tmpRoot, runtime, path.join(root, 'workers'), store, () => {}, () => {});
+
+  try {
+    const id = randomUUID();
+    const work = service.work(id);
+    const out = service.out(id);
+    await fs.mkdir(work, { recursive: true });
+    await fs.mkdir(out, { recursive: true });
+
+    // Copy episode source and music source
+    const episodeSource = path.join(work, 'episode.mp4');
+    await fs.copyFile(testVideo, episodeSource);
+    const musicSource = path.join(work, 'music.wav');
+    if (await fs.stat(testAudio).catch(() => null)) {
+      await fs.copyFile(testAudio, musicSource);
+    } else {
+      await fs.copyFile(testVideo, musicSource);
+    }
+
+    const musicMap: MusicMap = {
+      duration: 180,
+      bpm: 130,
+      beats: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+      strongBeats: [1.5],
+      energySections: []
+    };
+    const sampleShots: AnimeShot[] = [
+      { id: 1, start: 0.0, end: 1.5, duration: 1.5 },
+      { id: 2, start: 1.5, end: 3.5, duration: 2.0 }
+    ];
+    const sampleConcepts: AnimeEditConcept[] = [
+      {
+        id: 1,
+        shotId: 2,
+        start: 1.5,
+        end: 3.5,
+        duration: 2.0,
+        impactTime: 2.5,
+        category: 'action',
+        style: 'hard_beat_drop',
+        title: 'Initial Hard Drop',
+        description: 'First render style',
+        narrativeImportance: 'high',
+        qualityScore: 92,
+        motionScore: 0.8,
+        faceScore: 0.3,
+        transientScore: 0.9,
+        hasDialogue: false
+      }
+    ];
+
+    await fs.writeFile(path.join(work, 'music_map.json'), JSON.stringify(musicMap));
+    await fs.writeFile(path.join(work, 'shots.json'), JSON.stringify(sampleShots));
+    await fs.writeFile(path.join(work, 'edit_concepts.json'), JSON.stringify(sampleConcepts));
+
+    const initialFile = path.join(out, 'reelmind_01.mp4');
+    await fs.writeFile(initialFile, 'initial-placeholder');
+
+    const job: Job = {
+      id,
+      title: 'Anime Rerender Test',
+      input: {
+        kind: 'local',
+        value: episodeSource,
+        musicPath: musicSource,
+        language: 'ja'
+      },
+      studio: 'anime',
+      stage: 'completed',
+      checkpoint: 'rendering',
+      progress: 100,
+      message: 'Render complete',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      outputs: [
+        {
+          id: '01',
+          title: 'Initial Hard Drop',
+          duration: 3.5,
+          file: initialFile,
+          reason: 'ACTION · hard beat drop (92% match)'
+        }
+      ],
+      provider: 'Local',
+      animeAnalysis: {
+        language: 'ja',
+        shotCount: 2,
+        bpm: 130,
+        candidatesCount: 1,
+        conceptsCount: 1,
+        concepts: sampleConcepts
+      }
+    };
+    store.put(job);
+
+    // Execute rerenderAnime with new style 'velocity_ramp' and custom audio mix
+    await service.rerenderAnime(id, 1, {
+      style: 'velocity_ramp',
+      sourceAudioMix: 0.25,
+      musicMix: 0.90
+    });
+
+    // 1. Verify output file was replaced with actual rendered video
+    const finalFileStat = await fs.stat(initialFile);
+    assert.ok(finalFileStat.size > 1000, 'Rendered MP4 should be a real media file > 1KB');
+
+    // 2. Verify job outputs was updated in-place with new style
+    const updatedJob = store.get(id)!;
+    assert.equal(updatedJob.outputs.length, 1);
+    const updatedOutput = updatedJob.outputs[0];
+    assert.equal(updatedOutput.id, '01');
+    assert.ok(updatedOutput.reason?.includes('velocity ramp'), `Reason should include 'velocity ramp', got: ${updatedOutput.reason}`);
+
+    // 3. Verify edit_concepts.json was updated on disk
+    const diskConcepts: AnimeEditConcept[] = JSON.parse(await fs.readFile(path.join(work, 'edit_concepts.json'), 'utf8'));
+    assert.equal(diskConcepts[0].style, 'velocity_ramp');
+
+    // 4. Verify plan.json has custom audio mix and velocity style
+    const planFile = path.join(work, 'amv_01', 'plan.json');
+    assert.ok(await fs.stat(planFile).catch(() => null));
+    const savedPlan: AnimeEditPlan = JSON.parse(await fs.readFile(planFile, 'utf8'));
+    assert.equal(savedPlan.style, 'velocity_ramp');
+    assert.equal(savedPlan.audio.sourceAudioMix, 0.25);
+    assert.equal(savedPlan.audio.musicMix, 0.90);
+  } finally {
+    store.db.close();
+    await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('service.rerenderAnime rejects invalid inputs, busy projects, and missing concepts gracefully', async () => {
+  const root = path.join(__dirname, '..');
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'reelmind-rerender-err-'));
+  const store = new Store(path.join(tmpRoot, 'db.sqlite'));
+  const service = new Service(tmpRoot, 'unused', 'unused', store, () => {}, () => {});
+
+  try {
+    // 1. Non-existent job
+    await assert.rejects(
+      () => service.rerenderAnime('00000000-0000-0000-0000-000000000000', 1),
+      /Anime project not found/
+    );
+
+    // 2. Non-anime job (e.g. podcast studio)
+    const podcastJob: Job = {
+      id: randomUUID(),
+      title: 'Podcast',
+      input: { kind: 'local', value: 'video.mp4' },
+      stage: 'completed',
+      checkpoint: 'rendering',
+      progress: 100,
+      message: 'Done',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      outputs: [],
+      provider: 'Local'
+    };
+    store.put(podcastJob);
+    await assert.rejects(
+      () => service.rerenderAnime(podcastJob.id, 1),
+      /Anime project not found/
+    );
+
+    // 3. Busy project
+    const animeJob: Job = {
+      id: randomUUID(),
+      title: 'Busy Anime',
+      input: { kind: 'local', value: 'episode.mp4' },
+      studio: 'anime',
+      stage: 'completed',
+      checkpoint: 'rendering',
+      progress: 100,
+      message: 'Done',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      outputs: [],
+      provider: 'Local'
+    };
+    store.put(animeJob);
+    service.active.set(animeJob.id, new AbortController());
+    await assert.rejects(
+      () => service.rerenderAnime(animeJob.id, 1),
+      /Project is currently busy processing/
+    );
+    service.active.delete(animeJob.id);
+
+    // 4. Missing analysis data files
+    await assert.rejects(
+      () => service.rerenderAnime(animeJob.id, 1),
+      /Source episode file is no longer in workspace/
+    );
+  } finally {
+    store.db.close();
+    await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('workers/shared/transcription.py properly frees VRAM with gc.collect and torch.cuda.empty_cache in finally block', async () => {
+  const root = path.join(__dirname, '..');
+  const transScript = path.join(root, 'workers', 'shared', 'transcription.py');
+  const content = await fs.readFile(transScript, 'utf8');
+
+  // Verify memory cleanup structure in GPU transcription path
+  assert.ok(content.includes('del model'), 'Script must delete model reference');
+  assert.ok(content.includes('gc.collect()'), 'Script must invoke garbage collector');
+  assert.ok(content.includes('torch.cuda.empty_cache()'), 'Script must call torch.cuda.empty_cache to flush GPU VRAM');
+  assert.ok(content.includes('finally:'), 'VRAM cleanup must be guaranteed in a finally block');
+});
+
 

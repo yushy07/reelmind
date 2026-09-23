@@ -127,6 +127,12 @@ export interface AnimeEditPlan {
   };
 }
 
+export interface AnimeRerenderOptions {
+  style?: AnimeEditStyle;
+  sourceAudioMix?: number;
+  musicMix?: number;
+}
+
 export interface AnimeEpisodeAnalysis {
   version: 1;
   metadata: AnimeEpisodeMetadata;
@@ -194,6 +200,7 @@ export interface API {
   pickAudio?():Promise<string|null>;
   create(input:CreateInput):Promise<string>;
   createAnime?(input:AnimeCreateInput):Promise<string>;
+  rerenderAnime?(jobId:string,conceptId:number,options?:AnimeRerenderOptions):Promise<void>;
   action(id:string,action:'pause'|'resume'|'delete'):Promise<void>;
   save(id:string):Promise<string|null>;
   settings(settings:Settings,keys:Partial<Record<Provider,string>>):Promise<void>;
