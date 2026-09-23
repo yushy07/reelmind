@@ -25,3 +25,9 @@ test('semantic failure visibly falls back to lexical selection',async()=>{
  const result=await analyze(transcript,{...defaults,cloudEnabled:false},async()=>'',new AbortController().signal,m=>reports.push(m),fetch,async()=>{throw new Error('ONNX worker failed');});
  assert.ok(result.length>0);assert.ok(reports.some(s=>s.includes('Semantic comparison unavailable')));
 });
+test('semantic comparison receives candidates beyond the twelve-clip ceiling',async()=>{
+ const transcript:Transcript={version:1,duration:800,language:'en',segments:Array.from({length:16},(_,i)=>({start:i*50,end:i*50+44.95,text:'Why did everything change? Because I learned the truth.',language:'en',words:Array.from({length:90},(_,j)=>({start:i*50+j*.5,end:i*50+j*.5+.45,text:j?'lesson':'Why?'}))}))};
+ let count=0;
+ const result=await analyze(transcript,{...defaults,cloudEnabled:false},async()=>'',new AbortController().signal,()=>{},fetch,async pool=>{count=pool.length;return pool.slice(0,12);});
+ assert.equal(count,16);assert.equal(result.length,12);
+});

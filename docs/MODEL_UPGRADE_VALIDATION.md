@@ -12,10 +12,14 @@
 
 ## Verified on this Windows machine
 
-- All 33 automated tests and TypeScript checks pass.
+- All 36 automated tests and TypeScript checks pass.
 - Desktop bridge, home, import and transcription settings smoke checks.
 - Packaged v0.2.0 startup self-test and actual MiniLM inference using the packaged Python/runtime: two 384-dimensional embeddings.
 - Windows Setup EXE built (873,710,473 bytes). Turbo weights are not inside it.
+- Setup installed successfully (exit 0); installed binary and uninstall registration report 0.2.0. Desktop shortcut replaced with the installed executable and correct icon. Start menu entry remains available.
+- Native Windows UI check: installed home screen opens, local engine is Ready, Standard is selected, Turbo download controls are present, and credential-presence indicators remain intact. No keys were displayed or changed.
+- Closing and reopening the installed app succeeds. Its `app.asar` SHA-256 matches the tested unpacked build. Git-history API-key pattern scan returned no matches.
+- Real 1.62 GB Turbo download completed and passed all pinned file checksums after resuming network interruptions. CPU INT8 transcription on the local speech fixture produced three segments.
 - Real MiniLM inference: identical 1.0000, English paraphrase 0.8917, Hindi equivalent 0.9254, Japanese equivalent 0.9366, unrelated topic -0.0483. Threshold 0.88 is conservative, not a general quality guarantee.
 - Long input windowing and distinct same-topic stories smoke checks.
 - Full Standard local pipeline: two rendered Reels, unchanged original and verified external saves. This run used software H.264; it is not evidence of NVENC performance.
@@ -25,7 +29,7 @@
 
 ## Release gates still in progress
 
-- Real Turbo download and inference, and commentary comparison using the user-supplied public video `nJOpwa49PqI`.
+- Commentary comparison using the user-supplied public video `nJOpwa49PqI`.
 - Real Hindi/Hinglish, Japanese and mixed-language transcription evaluation. The supplied cricket highlights video is tagged English, not a multilingual benchmark. The semantic text smoke check above does not substitute for speech/caption evaluation.
 
 No accuracy improvement or transcription speed claim should be made without a measured comparison. Existing public installers remain available while the new release is validated.

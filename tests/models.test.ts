@@ -27,3 +27,12 @@ test('expired partial downloads are removed but installed models survive',()=>fi
  const manager=new ModelManager(root,()=>{},async()=>new Response(content),spec);await manager.download(new AbortController().signal);
  await fs.mkdir(manager.staging(),{recursive:true});await fs.writeFile(path.join(manager.staging(),'model.bin.part'),'partial');const past=new Date(Date.now()-25*3600000);await fs.utimes(manager.staging(),past,past);await manager.cleanup();assert.equal(await fs.stat(manager.staging()).catch(()=>null),null);assert.equal(await manager.valid(manager.directory()),true);
 }));
+test('insufficient space prevents any network request',()=>fixture(async root=>{
+ const huge={...spec,files:spec.files.map(f=>({...f,size:Number.MAX_SAFE_INTEGER}))};
+ const manager=new ModelManager(root,()=>{},async()=>{assert.fail('Must not download without disk space');},huge);
+ await assert.rejects(manager.download(new AbortController().signal),/Not enough disk space/);assert.equal(manager.state.ready,false);
+}));
+test('server ignoring Range restarts the file without appending corrupt data',()=>fixture(async root=>{
+ const manager=new ModelManager(root,()=>{},async()=>new Response(content),spec);
+ await fs.mkdir(manager.staging(),{recursive:true});await fs.writeFile(path.join(manager.staging(),'model.bin.part'),content.subarray(0,5));await manager.download(new AbortController().signal);assert.equal(await manager.valid(manager.directory()),true);
+}));
