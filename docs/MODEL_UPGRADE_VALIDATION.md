@@ -34,6 +34,6 @@
 
 - Real Hindi/Hinglish, Japanese and mixed-language transcription evaluation. The supplied cricket highlights video is tagged English, not a multilingual benchmark. The semantic text smoke check above does not substitute for speech/caption evaluation.
 
-The installed local app is updated to 0.2.0; public 0.2.0 release publication remains deferred until the language evaluation gate is satisfied. Existing v0.1.0 and v0.1.1 downloads are untouched.
+The [v0.2.0 installer is published as a GitHub prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.0) with the remaining language-evaluation caveat stated on the release. The uploaded Setup EXE is 873,714,549 bytes; SHA-256: `0121BCEB1CC824F7AFFCFB687ACDE7BC7875F3E8CF4AA540ABE3DB509034BDB3`. This is not a stable-release quality claim. Existing v0.1.0 and v0.1.1 downloads are untouched.
 
 No accuracy improvement or transcription speed claim should be made without a measured comparison. Existing public installers remain available while the new release is validated.

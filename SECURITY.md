@@ -10,4 +10,4 @@ Before committing, stage only intended source changes and run `npm run check:sec
 
 Use GitHub private vulnerability reporting if enabled. Otherwise contact the maintainer privately before posting sensitive details. This personal-use V1 has not had an independent security audit.
 
-The local installer is unsigned. Before public binary distribution, complete real-media validation, signing if desired, and the bundled dependencies' license/source-distribution requirements described in THIRD_PARTY.md. Do not bundle personal credentials or app data in a release.
+The installer is unsigned. v0.2.0 is a personal-use prerelease published while real Hindi/Hinglish, Japanese, and mixed-language evaluation remains incomplete; do not treat it as a stable-quality guarantee. Before a stable release, complete real-media validation, signing if desired, and the bundled dependencies' license/source-distribution requirements described in THIRD_PARTY.md. Do not bundle personal credentials or app data in a release.

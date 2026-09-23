@@ -4,13 +4,13 @@
 
 **A personal, Windows-only studio for turning long videos into Instagram-ready Reels.** Import a local video or public link, let the app find strong moments, and save the finished vertical clips wherever you want. No timeline editor, subscription, added music, or developer tools are needed for the installed app.
 
-[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.1.1) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
+[Download the Windows installer](https://github.com/yushy07/reelmind/releases/tag/v0.2.0) · [Report a problem](https://github.com/yushy07/reelmind/issues) · [Security and privacy](SECURITY.md)
 
-> **Current release:** v0.1.1 is an early personal-use prerelease. The installer is unsigned. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
+> **Current release:** [v0.2.0 is a personal-use prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.0). The installer is unsigned, and real Hindi/Hinglish, Japanese, and mixed-language evaluation is still in progress. The Windows installer includes the local engine, models, fonts, and media tools; the separate `REELMIND.exe` inside an unpacked build is not a standalone download.
 
-> **Source status:** the current repository also contains the v0.2.0 work-in-progress, including optional Whisper Turbo and pasted-transcript input. The v0.2.0 installer has been built for local use, but has not been published as a GitHub release. The download link below intentionally remains on v0.1.1 until release checks are complete.
+> **Source status:** the repository matches the v0.2.0 prerelease source. Optional Whisper Turbo and pasted-transcript input are included in that release. The earlier v0.1.0 and v0.1.1 downloads remain available.
 
-**Moving to another Windows PC?** Download the **Setup EXE under Releases**, run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
+**Moving to another Windows PC?** Download **`REELMIND.Setup.0.2.0.exe`** from the [v0.2.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.0), run it once, then add your own Gemini/OpenRouter keys in the app's Settings if you want cloud analysis. No keys are included in the installer, and keys are optional because local analysis works without them. GitHub's **Code → Download ZIP** is source code only; it does not contain the installer or bundled runtime. To use that ZIP, follow [Build from source](#build-from-source) instead.
 
 ## Inside the app
 
@@ -35,7 +35,7 @@ Screenshots are from the desktop app. The Settings image contains no API keys.
 
 ![Local transcription mode and optional Turbo download](docs/screenshots/transcription-settings.png)
 
-See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. The existing public release link above stays unchanged until the new release is published.
+See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed checks and remaining language evaluation. This prerelease is available for early use; v0.1.0 and v0.1.1 remain unchanged.
 
 - Up to **12** automatically selected Reels per video; fewer are fine, and weak moments are not added to meet a quota.
 - **30–60 seconds** each, exported as **1080 × 1920 MP4** with H.264 video and AAC audio.
@@ -45,7 +45,7 @@ See [model upgrade validation](docs/MODEL_UPGRADE_VALIDATION.md) for completed c
 
 ## Install and use
 
-1. Download and run **`REELMIND Setup 0.1.1.exe`** from the [v0.1.1 release](https://github.com/yushy07/reelmind/releases/tag/v0.1.1). This is the latest public installer; it does not yet include the v0.2.0 updates described above.
+1. Download and run **`REELMIND.Setup.0.2.0.exe`** from the [v0.2.0 prerelease](https://github.com/yushy07/reelmind/releases/tag/v0.2.0).
 2. Open **REELMIND** from the desktop shortcut or Windows Start menu.
 3. Choose **New project**, then a local MP4, MOV, MKV, AVI, or WebM file, or a public YouTube/direct-video HTTPS link. Optionally paste a transcript in the same screen: plain text or timestamped SRT/VTT. Select **Generate Reels**.
 4. When processing finishes, open **Your Reels** and choose **Save Reels**. Select a folder outside the app's installation and data folders. REELMIND verifies each saved file before removing its internal copy.
@@ -140,7 +140,7 @@ For checks, use `npm test`, `npm run typecheck`, `npm run check:secrets`, and `n
 
 Real multilingual and multi-speaker podcast evaluation is still needed. Speech recognition and active-speaker framing can be wrong around overlapping voices, very short turns, rapid language switching, or scene cuts. Local heuristic ranking is less capable than a strong cloud model; neither mode guarantees a great editorial choice. Public-link support depends on third-party sites and may need tool updates. V1 has no manual caption correction after rendering.
 
-The [MiniLM and optional Whisper Turbo plan](docs/MINILM_TURBO_PLAN.md) records the implementation scope; the [validation report](docs/MODEL_UPGRADE_VALIDATION.md) tracks completed checks and remaining release gates. These upgrades and pasted-transcript input are present in the v0.2.0 source/local build, but are not included in the currently published v0.1.1 installer.
+The [MiniLM and optional Whisper Turbo plan](docs/MINILM_TURBO_PLAN.md) records the implementation scope; the [validation report](docs/MODEL_UPGRADE_VALIDATION.md) tracks completed checks and remaining release gates. These upgrades and pasted-transcript input are included in the v0.2.0 prerelease installer; v0.1.0 and v0.1.1 remain available as earlier releases.
 
 ## License, credits, and safety
 

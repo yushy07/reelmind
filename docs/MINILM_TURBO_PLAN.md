@@ -2,7 +2,7 @@
 
 Original implementation plan · 23 September 2026.
 
-> **Status:** The MiniLM and optional Whisper Turbo work is implemented in the v0.2.0 source and local Windows installer. Publication is still gated on the remaining real-language evaluation listed in [MODEL_UPGRADE_VALIDATION.md](MODEL_UPGRADE_VALIDATION.md). The current public installer remains v0.1.1. This document preserves the original scope and acceptance plan; consult the validation report for current evidence.
+> **Status:** The MiniLM and optional Whisper Turbo work is implemented in v0.2.0 and published as a personal-use prerelease. Real-language evaluation remains incomplete as listed in [MODEL_UPGRADE_VALIDATION.md](MODEL_UPGRADE_VALIDATION.md). This document preserves the original scope and acceptance plan; consult the validation report for current evidence.
 
 ## 1. Current build audit
 
