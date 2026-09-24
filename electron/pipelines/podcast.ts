@@ -379,6 +379,14 @@ export class PodcastPipeline {
           this.ctx.update(job, { outputs: job.outputs });
         }
       }
+      const thumbFile = path.join(output, 'thumbnail.jpg');
+      if (!await exists(thumbFile)) {
+        await run(
+          path.join(this.ctx.runtime, 'ffmpeg.exe'),
+          ['-hide_banner', '-y', '-ss', '00:00:05', '-i', source, '-vframes', '1', '-q:v', '3', thumbFile],
+          { signal }
+        ).catch(() => {});
+      }
       this.ctx.update(job, {
         stage: 'completed',
         progress: 100,

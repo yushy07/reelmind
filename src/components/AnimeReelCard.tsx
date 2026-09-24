@@ -46,6 +46,11 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
         key={reel.planHash || reel.id}
         src={`reel://output/${job.id}/${reel.id}?h=${reel.planHash || ''}`}
         aria-label={`AMV Edit ${index + 1}: ${reel.title}`}
+        onPlay={(e) => {
+          document.querySelectorAll('video').forEach((v) => {
+            if (v !== e.currentTarget && !v.paused) v.pause();
+          });
+        }}
       />
       <div className="anime-output-body">
         <div className="anime-output-meta">
@@ -184,7 +189,7 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
               </>
             ) : (
               <>
-                <Sparkles size={14} /> Re-render AMV (~3s)
+                <Sparkles size={14} /> Re-render AMV
               </>
             )}
           </button>
@@ -210,7 +215,9 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
               'Ready to save'
             )}
           </small>
-          <span>{aspect} Preset</span>
+          <span>
+            {aspect === '16:9' ? '16:9 Cinema' : aspect === '1:1' ? '1:1 Square' : '9:16 Vertical HD'}
+          </span>
         </div>
       </div>
     </article>

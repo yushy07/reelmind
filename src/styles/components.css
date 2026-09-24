@@ -414,12 +414,23 @@ nav button.active.anime-scope::before { background: var(--accent-anime); }
 }
 .project-row:hover:not(:disabled) { border-color: var(--lab-rule-strong); transform: translateY(-1px); box-shadow: var(--shadow-paper-sm); }
 .project-thumb {
+  position: relative;
+  overflow: hidden;
   display:grid; place-items:center; width:48px; height:48px;
   background: var(--lab-paper-sunk); border:1px solid var(--lab-rule); border-radius:10px; color: var(--accent); flex-shrink:0;
   /* subtle sprocket dots */
   background-image: radial-gradient(circle, var(--lab-rule-strong) 1px, transparent 1.3px);
   background-size: 6px 6px;
   background-position: right 4px center;
+}
+.project-thumb .thumb-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  z-index: 1;
 }
 .project-thumb.anime-thumb { color: var(--accent-anime); background-color: var(--accent-anime-soft); border-color: var(--accent-anime-border); }
 .project-row-content { min-width:0; flex:1; }

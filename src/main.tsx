@@ -56,6 +56,16 @@ function App() {
       } else if (!isInput && (e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault();
         go('settings');
+      } else if (!isInput && e.key === ' ') {
+        const videos = Array.from(document.querySelectorAll('video'));
+        const playing = videos.find((v) => !v.paused);
+        if (playing) {
+          e.preventDefault();
+          playing.pause();
+        } else if (videos.length > 0) {
+          e.preventDefault();
+          videos[0].play().catch(() => {});
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);

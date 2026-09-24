@@ -303,6 +303,11 @@ export function ProjectDetail({
                     preload="metadata"
                     src={`reel://output/${job.id}/${reel.id}`}
                     aria-label={`Reel ${i + 1}: ${reel.title}`}
+                    onPlay={(e) => {
+                      document.querySelectorAll('video').forEach((v) => {
+                        if (v !== e.currentTarget && !v.paused) v.pause();
+                      });
+                    }}
                   />
                   <div>
                     <span className="eyebrow">

@@ -20,6 +20,16 @@ export function ProjectRow({ job, onOpen }: ProjectRowProps) {
       aria-label={`Open ${job.name || job.title}, ${stageLabels[job.stage]}`}
     >
       <span className={`project-thumb ${isAnime ? 'anime-thumb' : ''}`}>
+        {job.stage === 'completed' && (
+          <img
+            src={`reel://output/${job.id}/thumb`}
+            alt=""
+            className="thumb-image"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
+        )}
         {isAnime ? <Sparkles size={22} /> : <Film size={22} />}
       </span>
       <span className="project-row-content">

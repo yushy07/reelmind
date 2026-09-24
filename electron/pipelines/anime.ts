@@ -275,7 +275,14 @@ export class AnimePipeline {
         concepts,
       };
       await atomicJSON(episodeFile, analysis);
-      await this.ctx.checkpoints.seal(episodeFile);
+      const thumbFile = path.join(output, 'thumbnail.jpg');
+      if (!await exists(thumbFile)) {
+        await run(
+          path.join(this.ctx.runtime, 'ffmpeg.exe'),
+          ['-hide_banner', '-y', '-ss', '00:00:05', '-i', episodeSource, '-vframes', '1', '-q:v', '3', thumbFile],
+          { signal }
+        ).catch(() => {});
+      }
       this.ctx.update(job, {
         stage: 'completed',
         progress: 100,

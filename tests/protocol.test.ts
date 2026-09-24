@@ -6,7 +6,7 @@ import { isAllowedOutputPath } from '../electron/storage';
 
 test('protocol path validation enforces UUID jobId and two-digit reelId format', () => {
   const isValidJobId = (id: string) => /^[\da-f-]{36}$/.test(id);
-  const isValidReelId = (id: string) => /^\d{2}$/.test(id);
+  const isValidReelId = (id: string) => id === 'thumb' || /^\d{2}$/.test(id);
 
   assert.equal(isValidJobId('12345678-1234-1234-1234-123456789abc'), true);
   assert.equal(isValidJobId('../../../secrets'), false);
@@ -14,6 +14,7 @@ test('protocol path validation enforces UUID jobId and two-digit reelId format',
 
   assert.equal(isValidReelId('01'), true);
   assert.equal(isValidReelId('99'), true);
+  assert.equal(isValidReelId('thumb'), true);
   assert.equal(isValidReelId('1'), false);
   assert.equal(isValidReelId('001'), false);
   assert.equal(isValidReelId('..'), false);

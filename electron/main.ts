@@ -36,11 +36,18 @@ app.whenReady().then(async()=>{
     const url=new URL(request.url);
     const parts=url.pathname.split('/').filter(Boolean);
     if(url.hostname!=='output'||parts.length!==2)return new Response('Not found',{status:404});
-    const [jobId,reelId]=parts;
-    if(!/^[\da-f-]{36}$/.test(jobId)||!/^\d{2}$/.test(reelId))return new Response('Not found',{status:404});
-    const job=store.get(jobId);const reel=job?.outputs.find(r=>r.id===reelId);
-    if(!reel)return new Response('Not found',{status:404});
-    const file=reel.savedPath||reel.file;
+    const [jobId,resourceId]=parts;
+    if(!/^[\da-f-]{36}$/.test(jobId))return new Response('Not found',{status:404});
+    let file: string | undefined;
+    if(resourceId==='thumb'){
+      file=path.join(root,'outputs',jobId,'thumbnail.jpg');
+    }else if(/^\d{2}$/.test(resourceId)){
+      const job=store.get(jobId);const reel=job?.outputs.find(r=>r.id===resourceId);
+      if(!reel)return new Response('Not found',{status:404});
+      file=reel.savedPath||reel.file;
+    }else{
+      return new Response('Not found',{status:404});
+    }
     const blocked=[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')];
     if(!isAllowedOutputPath(file,root,blocked))return new Response('Not found',{status:404});
     try{ return net.fetch(pathToFileURL(file).toString(),{headers:request.headers}); }catch{ return new Response('Not found',{status:404}); }
