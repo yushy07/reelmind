@@ -14,7 +14,6 @@ cache/
 .env*
 !.env.example
 Pasted text.txt
-VALIDATION.md
 phase.txt
 *.sqlite*
 *.db
@@ -53,7 +52,6 @@ coverage/
 .DS_Store
 Thumbs.db
 Desktop.ini
-phase.txt
 *.tmp
 *.part*
 *.sha256
