@@ -1,0 +1,36 @@
+name: "Feature Request"
+description: "Suggest an idea or enhancement for REELMIND Studio"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting new ideas for REELMIND!
+  - type: dropdown
+    id: category
+    attributes:
+      label: Target Feature Area
+      description: What area of the studio does this request enhance?
+      options:
+        - "Anime AMV Studio (Visual effects, cuts, styles)"
+        - "Podcast Studio (Speech, face tracking, captions)"
+        - "Rendering & Hardware (NVENC, CPU, codecs)"
+        - "UI / UX & Animations"
+        - "Export & Storage"
+    validations:
+      required: true
+  - type: textarea
+    id: feature-pitch
+    attributes:
+      label: Proposed Feature or Solution
+      description: Explain how you envision the feature working.
+    validations:
+      required: true
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem or Creative Goal
+      description: What problem does this solve, or what creative capability does it unlock?
+    validations:
+      required: true

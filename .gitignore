@@ -1,7 +1,17 @@
+# ==============================================================================
+# REELMIND .gitignore — Clean, Safe, and Offline-First Workspace
+# ==============================================================================
+
+# Node Dependencies & Build Artifacts
 node_modules/
 dist/
 dist-electron/
 release/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# Portable Runtime, Download Cache & Local Checkpoints
 runtime/
 model-downloads/
 models/
@@ -9,20 +19,17 @@ models/
 work/
 outputs/
 cache/
-*.log
-*.dmp
-.env*
-!.env.example
-Pasted text.txt
-phase.txt
-*.sqlite*
-*.db
-*.pem
-*.key
-*.pfx
-*.p12
-credentials.json
-secrets.json
+.cache/
+*.tmp
+*.part*
+*.sha256
+*.onnx
+*.bin
+*.safetensors
+*.pth
+*.pt
+
+# Video, Audio & Subtitle Media (Never commit raw user media)
 *.mp4
 *.mov
 *.mkv
@@ -31,29 +38,64 @@ secrets.json
 *.wav
 *.mp3
 *.m4a
+*.flac
+*.aac
 *.srt
 *.vtt
+*.ass
 *.transcript.txt
 pasted-transcript.txt
 transcript.txt
-*.ass
+Pasted text.txt
+
+# Binary Installers & Compressed Archives
 *.exe
 *.msi
 *.zip
 *.7z
-*.onnx
-*.bin
+*.tar.gz
+
+# Python Bytecode, Caches & Virtual Environments
 __pycache__/
 *.py[cod]
-.cache/
+*$py.class
 .venv/
-coverage/
-*.tsbuildinfo
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Databases, Logs & Crash Dumps
+*.sqlite*
+*.db
+*.log
+*.dmp
+phase.txt
+
+# Security, API Keys & Certificates (Zero Leak Policy)
+.env*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+secrets.json
+
+# Operating System Caches & IDE Diff Buffers
 .DS_Store
 Thumbs.db
 Desktop.ini
-*.tmp
-*.part*
-*.sha256
+ehthumbs.db
+$RECYCLE.BIN/
 .vscode/
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+original_/
+*.orig

@@ -1,0 +1,57 @@
+name: "Bug Report"
+description: "File a reproducible issue or crash in REELMIND Studio"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Before submitting, please check that you are running the latest version of REELMIND.
+  - type: dropdown
+    id: studio-mode
+    attributes:
+      label: Studio Mode
+      description: In which studio mode did the issue occur?
+      options:
+        - "Podcast Studio (Speech & Dialogue)"
+        - "Anime AMV Studio (Beat-Synced 9:16)"
+        - "General / Ingestion / Settings"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Create new project with media '...'
+        2. Set studio mode to '...'
+        3. Click 'Run Analysis'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment & Hardware
+      description: OS version, GPU model, and VRAM amount.
+      value: |
+        - OS: Windows 11 64-bit (or Windows 10)
+        - GPU: NVIDIA RTX / Intel Arc / AMD Radeon / CPU
+        - RAM / VRAM: 
+        - REELMIND Version: v0.3.1
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Output
+      description: Paste any error messages from the app or console logs.
+      render: shell
