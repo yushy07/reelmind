@@ -1,17 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Film,
-  Sparkles,
-  Plus,
-  Search,
-  ChevronRight,
-  Clapperboard,
-  ArrowRight,
-  ShieldCheck,
-} from 'lucide-react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
+import { Plus, Search, Clapperboard, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { Job } from '../../shared/types';
-import { podcastStages, animeStages, stageLabels } from '../lib/stages';
-import { durationFormat } from '../lib/format';
+import { stageLabels } from '../lib/stages';
+import { ProjectRow } from './ProjectRow';
 
 interface LibraryProps {
   jobs: Job[];
@@ -22,6 +13,7 @@ interface LibraryProps {
 
 export function Library({ jobs, studio, onOpenProject, onNewProject }: LibraryProps) {
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [studioFilter, setStudioFilter] = useState<'all' | 'podcast' | 'anime'>(studio);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'working' | 'attention'>('all');
 
@@ -41,9 +33,9 @@ export function Library({ jobs, studio, onOpenProject, onNewProject }: LibraryPr
       if (statusFilter === 'attention' && !['paused', 'failed', 'expired'].includes(j.stage))
         return false;
 
-      // Search filter
-      if (search.trim()) {
-        const query = search.toLowerCase();
+      // Search filter using deferred query
+      if (deferredSearch.trim()) {
+        const query = deferredSearch.toLowerCase();
         const titleMatch = (j.name || j.title).toLowerCase().includes(query);
         const stageMatch = (stageLabels[j.stage] || '').toLowerCase().includes(query);
         return titleMatch || stageMatch;
@@ -51,7 +43,7 @@ export function Library({ jobs, studio, onOpenProject, onNewProject }: LibraryPr
 
       return true;
     });
-  }, [jobs, studioFilter, statusFilter, search]);
+  }, [jobs, studioFilter, statusFilter, deferredSearch]);
 
   return (
     <div className="library-view">
@@ -67,86 +59,61 @@ export function Library({ jobs, studio, onOpenProject, onNewProject }: LibraryPr
       </div>
 
       {/* Search & Filter Bar */}
-      <div
-        className="library-controls controls-row"
-      >
-        {/* Search Input */}
+      <div className="library-controls controls-row">
         <div className="search-wrap">
-          <Search
-            size={16}
-            className="search-icon"
-          />
+          <Search size={16} className="search-icon" />
           <input
-            type="text"
-            placeholder="Search projects by title or status…"
+            type="search"
+            placeholder="Search by title or status…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-with-search"
+            aria-label="Search projects"
           />
         </div>
 
-        {/* Studio Filter Pills */}
-        <div className="tabs controls-tabs">
-          <button
-            type="button"
-            className={`${studioFilter === 'all' ? 'active' : ''} btn-filter`}
-            onClick={() => setStudioFilter('all')}
-          >
-            All Workspaces
-          </button>
-          <button
-            type="button"
-            className={`${studioFilter === 'podcast' ? 'active' : ''} btn-filter`}
-            onClick={() => setStudioFilter('podcast')}
-          >
-            Podcast
-          </button>
-          <button
-            type="button"
-            className={`${studioFilter === 'anime' ? 'active' : ''} btn-filter`}
-            onClick={() => setStudioFilter('anime')}
-          >
-            Anime AMV
-          </button>
+        {/* Studio Filter */}
+        <div className="tabs controls-tabs" role="tablist" aria-label="Studio Filter">
+          {(['all', 'podcast', 'anime'] as const).map((s) => (
+            <button
+              key={s}
+              role="tab"
+              aria-selected={studioFilter === s}
+              className={`btn-filter ${studioFilter === s ? 'active' : ''}`}
+              onClick={() => setStudioFilter(s)}
+            >
+              {s === 'all' ? 'All Studios' : s === 'podcast' ? 'Podcast' : 'Anime'}
+            </button>
+          ))}
         </div>
 
-        {/* Status Filter Pills */}
-        <div className="tabs controls-tabs">
-          <button
-            type="button"
-            className={`${statusFilter === 'all' ? 'active' : ''} btn-filter`}
-            onClick={() => setStatusFilter('all')}
-          >
-            All ({jobs.length})
-          </button>
-          <button
-            type="button"
-            className={`${statusFilter === 'completed' ? 'active' : ''} btn-filter`}
-            onClick={() => setStatusFilter('completed')}
-          >
-            Completed
-          </button>
-          <button
-            type="button"
-            className={`${statusFilter === 'working' ? 'active' : ''} btn-filter`}
-            onClick={() => setStatusFilter('working')}
-          >
-            Active
-          </button>
-          <button
-            type="button"
-            className={`${statusFilter === 'attention' ? 'active' : ''} btn-filter`}
-            onClick={() => setStatusFilter('attention')}
-          >
-            Attention
-          </button>
+        {/* Status Filter */}
+        <div className="tabs controls-tabs" role="tablist" aria-label="Status Filter">
+          {(
+            [
+              ['all', 'All'],
+              ['completed', 'Ready'],
+              ['working', 'Working'],
+              ['attention', 'Attention'],
+            ] as const
+          ).map(([val, label]) => (
+            <button
+              key={val}
+              role="tab"
+              aria-selected={statusFilter === val}
+              className={`btn-filter ${statusFilter === val ? 'active' : ''}`}
+              onClick={() => setStatusFilter(val)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Project Rows */}
+      {/* Projects List */}
       {filtered.length === 0 ? (
-        <div className="empty-projects">
-          <div className="empty-icon">
+        <div className="empty-state">
+          <div className="empty-state-icon">
             <Clapperboard size={24} />
           </div>
           <h3>No Projects Match Your Filter</h3>
@@ -161,76 +128,9 @@ export function Library({ jobs, studio, onOpenProject, onNewProject }: LibraryPr
         </div>
       ) : (
         <div className="project-list">
-          {filtered.map((j) => {
-            const isAnime = j.studio === 'anime';
-            const activeStages = (isAnime ? animeStages : podcastStages).slice(0, -1) as readonly string[];
-            const working = activeStages.includes(j.stage);
-            const details = [
-              isAnime
-                ? `ANIME (${j.input.language?.toUpperCase() || 'JA'})`
-                : j.input.kind === 'url'
-                ? 'VIDEO LINK'
-                : 'LOCAL VIDEO',
-              new Date(j.createdAt).toLocaleDateString(),
-              j.duration ? durationFormat(j.duration) : null,
-              isAnime
-                ? j.outputs.length
-                  ? `${j.outputs.length} AMV ${j.outputs.length === 1 ? 'Edit' : 'Edits'}`
-                  : j.animeAnalysis
-                  ? `${j.animeAnalysis.shotCount} shots · ${j.animeAnalysis.bpm} BPM`
-                  : 'Analysis DB'
-                : j.outputs.length
-                ? `${j.outputs.length} ${j.outputs.length === 1 ? 'Reel' : 'Reels'} Ready`
-                : null,
-            ].filter(Boolean);
-
-            return (
-              <button
-                className="project-row"
-                key={j.id}
-                onClick={() => onOpenProject(j.id)}
-                aria-label={`Open ${j.name || j.title}, ${stageLabels[j.stage]}`}
-              >
-                <span className={`project-thumb ${isAnime ? 'anime-thumb' : ''}`}>
-                  {isAnime ? <Sparkles size={22} /> : <Film size={22} />}
-                </span>
-                <span className="project-row-content">
-                  <span className="project-row-kicker">{details.join('  ·  ')}</span>
-                  <strong>{j.name || j.title}</strong>
-                  <small>
-                    {working
-                      ? j.message
-                      : j.stage === 'completed'
-                      ? isAnime
-                        ? j.outputs.length
-                          ? `${j.outputs.length} AMV Edits ready to save`
-                          : 'Analysis Database ready'
-                        : j.outputs.every((r) => r.savedPath)
-                        ? 'Saved to your folder'
-                        : 'Ready to review and save'
-                      : j.stage === 'paused'
-                      ? 'Resume before recovery expires'
-                      : j.stage === 'failed'
-                      ? 'Open to review and retry'
-                      : j.title}
-                  </small>
-                  {working && (
-                    <progress
-                      className="row-progress"
-                      value={j.progress}
-                      max={100}
-                      aria-label={`${j.name || j.title} progress`}
-                    />
-                  )}
-                </span>
-                <span className={`badge ${j.stage}`}>
-                  {stageLabels[j.stage]}
-                  {working ? ` · ${Math.floor(j.progress)}%` : ''}
-                </span>
-                <ChevronRight className="project-row-chevron" size={18} />
-              </button>
-            );
-          })}
+          {filtered.map((j) => (
+            <ProjectRow key={j.id} job={j} onOpen={onOpenProject} />
+          ))}
         </div>
       )}
 

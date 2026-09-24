@@ -1,8 +1,7 @@
 import React from 'react';
 import { Film, Sparkles, ChevronRight } from 'lucide-react';
 import type { Job } from '../../shared/types';
-import { podcastStages, animeStages, stageLabels } from '../lib/stages';
-import { durationFormat } from '../lib/format';
+import { podcastStages, animeStages, stageLabels, kickerFor } from '../lib/stages';
 
 interface ProjectRowProps {
   job: Job;
@@ -14,25 +13,6 @@ export function ProjectRow({ job, onOpen }: ProjectRowProps) {
   const activeStages = (isAnime ? animeStages : podcastStages).slice(0, -1);
   const working = (activeStages as readonly string[]).includes(job.stage);
 
-  const details = [
-    isAnime
-      ? `ANIME (${job.input.language?.toUpperCase() || 'JA'})`
-      : job.input.kind === 'url'
-        ? 'VIDEO LINK'
-        : 'LOCAL VIDEO',
-    new Date(job.createdAt).toLocaleDateString(),
-    job.duration ? durationFormat(job.duration) : null,
-    isAnime
-      ? job.outputs.length
-        ? `${job.outputs.length} AMV ${job.outputs.length === 1 ? 'Edit' : 'Edits'}`
-        : job.animeAnalysis
-          ? `${job.animeAnalysis.shotCount} shots · ${job.animeAnalysis.bpm} BPM`
-          : 'Analysis DB'
-      : job.outputs.length
-        ? `${job.outputs.length} ${job.outputs.length === 1 ? 'Reel' : 'Reels'} Ready`
-        : null,
-  ].filter(Boolean);
-
   return (
     <button
       className="project-row"
@@ -43,7 +23,7 @@ export function ProjectRow({ job, onOpen }: ProjectRowProps) {
         {isAnime ? <Sparkles size={22} /> : <Film size={22} />}
       </span>
       <span className="project-row-content">
-        <span className="project-row-kicker">{details.join('  ·  ')}</span>
+        <span className="project-row-kicker">{kickerFor(job)}</span>
         <strong>{job.name || job.title}</strong>
         <small>
           {working

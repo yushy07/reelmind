@@ -6,6 +6,7 @@ import { Store, isAllowedOutputPath } from './storage';
 import { Service } from './service';
 import { settingsSchema } from './core';
 import { run } from './process';
+import { probe as probeHardware } from './hardware';
 import { z } from 'zod';
 import type { CreateInput, Provider, Status } from '../shared/types';
 protocol.registerSchemesAsPrivileged([{scheme:'reel',privileges:{standard:true,secure:true,stream:true,supportFetchAPI:true,bypassCSP:false}}]);
@@ -103,7 +104,10 @@ app.whenReady().then(async()=>{
   handle('turbo',async action=>{z.enum(['download','cancel']).parse(action);if(action==='download')service.models.start();else service.models.cancel();});
   await service.init();
   if(!selfTest)for(const p of ['gemini','openrouter'] as const)keyPresence[p]=!!await service.key(p).catch(()=>'');
-  try{const value=await run('nvidia-smi',['--query-gpu=name,memory.total','--format=csv,noheader,nounits']);const fields=value.trim().split(',');const vram=Number(fields.at(-1)?.trim()||0);service.configureHardware(vram);hardware=`${fields.slice(0,-1).join(',').trim()} · ${Math.round(vram/1024)} GB VRAM · ${vram>=2048?'NVENC enabled':'CPU encoding'}`;}catch{hardware='CPU encoding available · NVIDIA GPU not detected';}changed();
+  const hwInfo = await probeHardware();
+  service.renderHardware = hwInfo;
+  hardware = hwInfo.display;
+  changed();
   setInterval(()=>{void service.cleanup().catch(()=>{});void service.models.cleanup(store.now()).catch(()=>{});},60_000).unref();
   if(process.env.REELMIND_DEV_URL&&!app.isPackaged)await window.loadURL('http://127.0.0.1:5173');else await window.loadFile(path.join(app.getAppPath(),'dist/index.html'));
   if(selfTest){
