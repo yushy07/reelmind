@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {validateUrl,selectCandidates,makeCaptions,planEdit,settingsSchema} from '../electron/core';
@@ -26,5 +26,5 @@ test('multiple cloud candidates receive a whole-video ranking pass',async()=>{
  const result=await analyze(t,{...defaults,geminiFreeConfirmed:true},async()=> 'test-key',new AbortController().signal,()=>{},mock as typeof fetch);
  assert.equal(calls,2);assert.equal(result.length,1);assert.ok(Math.abs(result[0].start-80)<.1);
 });
-test('storage restricts export and deletion; originals survive',async()=>{const root=await mkdtemp(path.join(os.tmpdir(),'reelmind-test-'));try{const work=path.join(root,'work');const job=path.join(work,'job');const external=path.join(root,'external');await mkdir(job,{recursive:true});await mkdir(external);await writeFile(path.join(external,'source.mp4'),'original');await assert.rejects(()=>externalDirectory(job,[work]));assert.equal(await externalDirectory(external,[work]),external);await assert.rejects(()=>removeWorkspace(work,external));await assert.rejects(()=>removeWorkspace(work,work));await removeWorkspace(work,job);assert.equal(await readFile(path.join(external,'source.mp4'),'utf8'),'original');}finally{await rm(root,{recursive:true,force:true});}});
+test('storage restricts export and deletion; originals survive',async()=>{const rawRoot=await mkdtemp(path.join(os.tmpdir(),'reelmind-test-'));const root=await realpath(rawRoot).catch(()=>rawRoot);try{const work=path.join(root,'work');const job=path.join(work,'job');const external=path.join(root,'external');await mkdir(job,{recursive:true});await mkdir(external);await writeFile(path.join(external,'source.mp4'),'original');await assert.rejects(()=>externalDirectory(job,[work]));assert.equal(await externalDirectory(external,[work]),await realpath(external).catch(()=>external));await assert.rejects(()=>removeWorkspace(work,external));await assert.rejects(()=>removeWorkspace(work,work));await removeWorkspace(work,job);assert.equal(await readFile(path.join(external,'source.mp4'),'utf8'),'original');}finally{await rm(root,{recursive:true,force:true});}});
 test('SQLite retains settings across reconnect',async()=>{const dir=await mkdtemp(path.join(os.tmpdir(),'reelmind-db-'));try{const file=path.join(dir,'db.sqlite');const first=new Store(file);first.setSettings({...defaults,quality:'high'});first.db.close();const second=new Store(file);assert.equal(second.settings().quality,'high');second.db.close();}finally{await rm(dir,{recursive:true,force:true});}});
