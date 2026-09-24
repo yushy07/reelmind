@@ -80,14 +80,14 @@ export function Sidebar({
       <div className="nav-label">{isAnime ? 'ANIME WORKSPACE' : 'STUDIO WORKSPACE'}</div>
       <nav aria-label="Main Navigation">
         <button
-          className={page === 'home' && !selectedJob ? 'active' : ''}
+          className={`${page === 'home' && !selectedJob ? 'active' : ''} ${isAnime ? 'anime-scope' : ''}`.trim()}
           onClick={() => go('home')}
         >
           <House size={18} />
           Overview
         </button>
         <button
-          className={page === 'library' && !selectedJob ? 'active' : ''}
+          className={`${page === 'library' && !selectedJob ? 'active' : ''} ${isAnime ? 'anime-scope' : ''}`.trim()}
           onClick={() => go('library')}
         >
           <Film size={18} />
@@ -95,7 +95,7 @@ export function Sidebar({
           {completed > 0 && <span className="count">{completed}</span>}
         </button>
         <button
-          className={page === 'settings' && !selectedJob ? 'active' : ''}
+          className={`${page === 'settings' && !selectedJob ? 'active' : ''} ${isAnime ? 'anime-scope' : ''}`.trim()}
           onClick={() => go('settings')}
         >
           <Settings2 size={18} />
@@ -107,7 +107,7 @@ export function Sidebar({
       <div className="sidebar-bottom">
         <div className="local-card">
           <div className="local-card-header">
-            <span className="status-radar" style={{ color: runtimeReady ? 'var(--status-ready)' : 'var(--podcast-primary)' }}>
+            <span className={`status-radar ${runtimeReady ? 'status-ready-icon' : 'status-needs-icon'}`}>
               <span className="radar-ping" />
               <span className="radar-dot" />
             </span>

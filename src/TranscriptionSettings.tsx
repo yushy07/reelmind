@@ -50,38 +50,33 @@ export function TranscriptionSettings({ data, settings, onChange }: Transcriptio
         </select>
       </label>
 
-      <p style={{ marginTop: 12 }}>
+      <p className="utility-spaced">
         Standard Whisper runs quickly and reliably. Whisper Turbo delivers enhanced word-level precision on complex dialogue and terminology.
       </p>
 
       {model.message && (
-        <p role="status" style={{ color: 'var(--text-secondary)' }}>
+        <p role="status" className="status-secondary">
           {model.message}
         </p>
       )}
 
       {!model.ready && (
-        <div style={{ marginTop: 14 }}>
-          <small className="block" style={{ color: 'var(--text-muted)' }}>
+        <div className="utility-spaced-sm">
+          <small className="block mono-muted">
             Model Size: {(model.total / 1e9).toFixed(2)} GB · Available Space: {(model.freeBytes / 1e9).toFixed(1)} GB. Installed speech models never expire.
           </small>
 
           {model.running ? (
-            <div style={{ marginTop: 12 }}>
+            <div className="progress-wrap">
               <progress
                 aria-label="Turbo download progress"
                 value={model.downloaded}
                 max={model.total}
               />
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: 6,
-                }}
+                className="progress-row"
               >
-                <span style={{ fontSize: 12, color: 'var(--podcast-primary-hover)' }}>
+                <span className="progress-pct">
                   {Math.floor((model.downloaded / model.total) * 100)}% downloaded
                 </span>
                 <button
@@ -96,9 +91,8 @@ export function TranscriptionSettings({ data, settings, onChange }: Transcriptio
           ) : (
             <button
               type="button"
-              className="secondary"
+              className="secondary utility-spaced"
               onClick={() => act('download')}
-              style={{ marginTop: 12 }}
             >
               <Download size={14} /> Download / Resume Whisper Turbo
             </button>
@@ -107,13 +101,13 @@ export function TranscriptionSettings({ data, settings, onChange }: Transcriptio
       )}
 
       {(error || model.error) && (
-        <div className="alert" role="alert" style={{ marginTop: 14 }}>
+        <div className="alert utility-spaced-sm" role="alert">
           <AlertCircle size={16} />
           <span>{error || model.error}</span>
         </div>
       )}
 
-      <small className="block" style={{ color: 'var(--text-subtle)', marginTop: 12 }}>
+      <small className="block mono-subtle utility-spaced">
         If Turbo fails or runs out of resources, Whisper Small automatically takes over.
       </small>
     </section>

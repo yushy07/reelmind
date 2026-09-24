@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
-import os from 'node:os';
-import { Store, atomicJSON, removeWorkspace, externalDirectory, hash } from './storage';
+import { randomUUID } from 'node:crypto';
+import { Store, atomicJSON, removeWorkspace, externalDirectory, hash, cleanupTemps } from './storage';
 import { DAY, validateUrl, planEdit } from './core';
 import { analyze } from './providers';
 import { candidateTexts, semanticSelection, SEMANTIC_VERSION } from './semantic';
@@ -15,17 +14,25 @@ import { selectAnimeMoments } from './anime/selection';
 import { planAnimeEdit } from './anime/planner';
 import { renderAnimeAMV } from './anime/renderer';
 import { parsePastedTranscript } from './pasted-transcript';
+import { defaultHardware, configureHardware, type Hardware } from './hardware';
+import { seal, checkpoint, fingerprint } from './checkpoint';
+import { Queue } from './queue';
 const exists=async(file:string)=>!!await fs.stat(file).catch(()=>null);
-const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class Service {
-  active=new Map<string,AbortController>();
   saving=new Set<string>();
   allowedInputs=new Set<string>();
-  stopping=false;
-  renderHardware={nvenc:false,cudaSpeechCandidate:false,cpuThreads:Math.max(2,Math.min(6,Math.floor(os.cpus().length/2)))};
+  renderHardware:Hardware=defaultHardware();
   models:ModelManager;
-  constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){this.models=new ModelManager(root,changed);}
-  configureHardware(vramMb:number){this.renderHardware.nvenc=vramMb>=2048;this.renderHardware.cudaSpeechCandidate=vramMb>=4096;if(vramMb&&vramMb<4096)this.renderHardware.cpuThreads=Math.min(4,this.renderHardware.cpuThreads);}
+  queue:Queue;
+  // compat: expose active/stopping like before so callers/tests still work
+  get active(){ return this.queue.active; }
+  get stopping(){ return this.queue.stopping; }
+  set stopping(v:boolean){ this.queue.stopping=v; }
+  constructor(public root:string,public runtime:string,public workers:string,public store:Store,public changed:()=>void,public notify:(j:Job)=>void){
+    this.models=new ModelManager(root,changed);
+    this.queue=new Queue(store,(job,isAnime)=> isAnime ? this.processAnime(job) : this.process(job));
+  }
+  configureHardware(vramMb:number){ configureHardware(this.renderHardware, vramMb); }
   work(id:string){if(!/^[\da-f-]{36}$/.test(id))throw new Error('Invalid project');return path.join(this.root,'work',id);}
   out(id:string){this.work(id);return path.join(this.root,'outputs',id);}
   update(job:Job,patch:Partial<Job>){Object.assign(job,patch,{updatedAt:this.store.now()});this.store.put(job);this.changed();}
@@ -55,7 +62,7 @@ export class Service {
     const job:Job={id:randomUUID(),studio:'anime',name:request.name?.trim()||undefined,title,input:{kind:'local',value:request.episodePath,musicPath:request.musicPath,language:request.language||'ja',name:request.name?.trim()||undefined},stage:'queued',checkpoint:'queued',progress:0,message:'Ready to analyze anime episode',createdAt:now,updatedAt:now,outputs:[],provider:'Local',fallbacks:[]};
     this.store.put(job);this.changed();this.pump();return job.id;
   }
-  pump(){if(this.stopping||this.active.size)return;const job=this.store.jobs().reverse().find(j=>j.stage==='queued');if(job){if(job.studio==='anime')void this.processAnime(job);else void this.process(job);}}
+  pump(){ this.queue.pump(); }
   async action(id:string,action:'pause'|'resume'|'delete'){
     const job=this.store.get(id);if(!job)throw new Error('Project not found.');
     if(this.saving.has(id))throw new Error('Wait for the save to finish.');
@@ -67,10 +74,11 @@ export class Service {
     if(job.cleanupAt&&job.cleanupAt<=this.store.now()){await this.cleanup();throw new Error('Recovery expired. Import your video again.');}
     this.update(job,{stage:'queued',cleanupAt:undefined,error:undefined,message:'Resuming from saved progress'});this.pump();
   }
-  async seal(file:string){await fs.writeFile(file+'.sha256',await hash(file),'utf8');}
-  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>,dependency?:string):Promise<T>{try{const value=JSON.parse(await fs.readFile(file,'utf8'));const expected=(await fs.readFile(file+'.sha256','utf8')).trim();const matches=!dependency||await fs.readFile(file+'.dependency','utf8')===dependency;if(matches&&validate(value)&&expected===await hash(file))return value;}catch{}const value=await generate();await atomicJSON(file,value);await this.seal(file);if(dependency)await fs.writeFile(file+'.dependency',dependency,'utf8');return value;}
+  // compat shims so pipeline code can call this.seal/this.checkpoint
+  async seal(file:string){ return seal(file); }
+  async checkpoint<T>(file:string,validate:(data:any)=>boolean,generate:()=>Promise<T>,dependency?:string):Promise<T>{ return checkpoint(this.store,file,validate,generate,dependency); }
   async process(job:Job){
-    const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
+    const controller=new AbortController();this.queue.register(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
     const phase=(stage:Stage,progress:number,message:string)=>this.update(job,{stage,checkpoint:stage,progress,message,cleanupAt:undefined});
     try{
       await fs.mkdir(work,{recursive:true});await fs.mkdir(output,{recursive:true});
@@ -145,11 +153,20 @@ export class Service {
         job.outputs=job.outputs.filter(r=>r.id!==id);job.outputs.push({id,title:candidates[i].hook.slice(0,100),duration:plan.duration,file,reason:candidates[i].reason,planHash});this.update(job,{outputs:job.outputs});
       }}
       this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} Reels ready to save`,cleanupAt:this.store.now()+DAY});this.notify(job);
-    }catch(error){this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});}
-    finally{this.active.delete(job.id);this.pump();}
+    }catch(error){
+      // Remove transient render artifacts so resume doesn't pick up corrupt partials
+      const partials:string[]=[];
+      try{ for(const n of await fs.readdir(output)) if(n.endsWith('.partial.mp4')||n.endsWith('.part')||n.endsWith('.part.wav')) partials.push(path.join(output,n)); }catch{}
+      try{ for(const n of await fs.readdir(work)) if(n.endsWith('.part')||n.endsWith('.part.wav')||n==='captions.ass'||n==='render.ffscript') partials.push(path.join(work,n)); }catch{}
+      // Per-clip temps (captions + ffscript + partials inside clip_* / amv_*)
+      try{ for(const e of await fs.readdir(work)) if(e.startsWith('clip_')||e.startsWith('amv_')){ const d=path.join(work,e); try{ for(const n of await fs.readdir(d)) if(n.endsWith('.partial.mp4')||n==='captions.ass'||n==='render.ffscript') partials.push(path.join(d,n)); }catch{} } }catch{}
+      await cleanupTemps(partials);
+      this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Processing needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});
+    }
+    finally{this.queue.release(job.id);}
   }
   async processAnime(job:Job){
-    const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
+    const controller=new AbortController();this.queue.register(job.id,controller);const signal=controller.signal;const work=this.work(job.id);const output=this.out(job.id);
     const phase=(stage:Stage,progress:number,message:string)=>this.update(job,{stage,checkpoint:stage,progress,message,cleanupAt:undefined});
     try{
       await fs.mkdir(work,{recursive:true});await fs.mkdir(output,{recursive:true});
@@ -255,14 +272,19 @@ export class Service {
       this.update(job,{stage:'completed',progress:100,message:`${job.outputs.length} AMV Edits ready to save (${musicMap.bpm} BPM)`,cleanupAt:this.store.now()+DAY,animeAnalysis:{shotCount:shots.length,bpm:musicMap.bpm,beatsCount:musicMap.beats.length,language:lang,candidatesCount:candidates.length,candidates:candidates.slice(0,30),conceptsCount:concepts.length,concepts}});
       this.notify(job);
     }catch(error){
+      const partials:string[]=[];
+      try{ for(const n of await fs.readdir(output)) if(n.endsWith('.partial.mp4')||n.endsWith('.part')||n.endsWith('.part.wav')) partials.push(path.join(output,n)); }catch{}
+      try{ for(const n of await fs.readdir(work)) if(n.endsWith('.part')||n.endsWith('.part.wav')) partials.push(path.join(work,n)); }catch{}
+      try{ for(const e of await fs.readdir(work)) if(e.startsWith('amv_')){ const d=path.join(work,e); try{ for(const n of await fs.readdir(d)) if(n.endsWith('.partial.mp4')||n==='captions.ass'||n==='render.ffscript') partials.push(path.join(d,n)); }catch{} } }catch{}
+      await cleanupTemps(partials);
       this.update(job,{stage:signal.aborted?'paused':'failed',cleanupAt:this.store.now()+DAY,message:signal.aborted?'Paused · resume within 24 hours':'Anime analysis needs attention',error:signal.aborted?undefined:String(error instanceof Error?error.message:error).slice(0,1600)});
     }finally{
-      this.active.delete(job.id);this.pump();
+      this.queue.release(job.id);
     }
   }
   async rerenderAnime(id:string,conceptId:number,options:AnimeRerenderOptions={}){
     const job=this.store.get(id);if(!job||job.studio!=='anime')throw new Error('Anime project not found.');
-    if(this.active.has(id))throw new Error('Project is currently busy processing.');
+    if(this.queue.has(id))throw new Error('Project is currently busy processing.');
     const work=this.work(job.id);const output=this.out(job.id);
     const episodeSource=path.join(work,'episode'+path.extname(job.input.value).toLowerCase());
     if(!await exists(episodeSource))throw new Error('Source episode file is no longer in workspace.');
@@ -297,12 +319,12 @@ export class Service {
       plan.audio.musicMix=Math.max(0,Math.min(1,options.musicMix));
     }
 
-    const controller=new AbortController();this.active.set(job.id,controller);const signal=controller.signal;
+    const controller=new AbortController();this.queue.register(job.id,controller);const signal=controller.signal;
     const clipId=String(concept.id).padStart(2,'0');const file=path.join(output,`reelmind_${clipId}.mp4`);
     const planHash=fingerprint({plan,quality:this.store.settings().quality,opts:options});
     const clipWork=path.join(work,'amv_'+clipId);
     await fs.mkdir(clipWork,{recursive:true});
-    await atomicJSON(path.join(clipWork,'plan.json'),plan);await this.seal(path.join(clipWork,'plan.json'));
+    await atomicJSON(path.join(clipWork,'plan.json'),plan);await seal(path.join(clipWork,'plan.json'));
 
     this.update(job,{message:`Re-rendering AMV ${concept.id} · ${concept.title} (${concept.style.replace(/_/g,' ')})`});
     try{
@@ -334,8 +356,7 @@ export class Service {
       this.update(job,{message:`AMV ${concept.id} re-rendered with ${concept.style.replace(/_/g,' ')}`,outputs:job.outputs,animeAnalysis:job.animeAnalysis});
       this.notify(job);
     }finally{
-      this.active.delete(job.id);
-      this.pump();
+      this.queue.release(job.id);
     }
   }
   async save(id:string,dir:string,blocked:string[]){
@@ -354,11 +375,12 @@ export class Service {
     }finally{this.saving.delete(id);}
   }
   async cleanup(){for(const job of this.store.jobs()){
-    if(this.active.has(job.id)||this.saving.has(job.id)||job.workingDeleted||!job.cleanupAt||job.cleanupAt>this.store.now())continue;
+    if(this.queue.has(job.id)||this.saving.has(job.id)||job.workingDeleted||!job.cleanupAt||job.cleanupAt>this.store.now())continue;
+    // Scrub transient temps before removing workspace
+    try{ const outDir=this.out(job.id); if(await exists(outDir)) for(const n of await fs.readdir(outDir)) if(n.endsWith('.partial.mp4')||n.endsWith('.part')||n.endsWith('.part.wav')) await fs.unlink(path.join(outDir,n)); }catch{}
+    try{ const w=this.work(job.id); for(const e of await fs.readdir(w)) if(e.startsWith('clip_')||e.startsWith('amv_')){ const d=path.join(w,e); for(const n of await fs.readdir(d)) if(n.endsWith('.partial.mp4')||n==='captions.ass'||n==='render.ffscript') await fs.unlink(path.join(d,n)); } }catch{}
     await removeWorkspace(path.join(this.root,'work'),this.work(job.id));
-    // Incomplete renders are temporary; completed outputs survive expiry.
-    if(await exists(this.out(job.id)))for(const name of await fs.readdir(this.out(job.id))){if(name.endsWith('.partial.mp4'))await fs.unlink(path.join(this.out(job.id),name));}
     job.input.value='';this.update(job,{workingDeleted:true,stage:job.stage==='completed'?'completed':'expired',message:job.stage==='completed'?'Working files cleaned up · finished Reels remain':'Recovery expired · import the source again',error:undefined});
   }}
-  async shutdown(){this.stopping=true;for(const [id,controller] of this.active){const job=this.store.get(id);if(job)this.update(job,{stage:'paused',cleanupAt:this.store.now()+DAY,message:'Paused when the app closed'});controller.abort();}while(this.active.size)await new Promise(r=>setTimeout(r,50));}
+  async shutdown(){this.queue.stopping=true;for(const [id,controller] of this.queue.active){const job=this.store.get(id);if(job)this.update(job,{stage:'paused',cleanupAt:this.store.now()+DAY,message:'Paused when the app closed'});controller.abort();}while(this.queue.size)await new Promise(r=>setTimeout(r,50));}
 }

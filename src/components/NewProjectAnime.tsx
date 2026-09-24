@@ -29,7 +29,7 @@ export function NewProjectAnime({
 
   return (
     <div className="narrow new-project-page">
-      <div className="eyebrow" style={{ color: 'var(--anime-primary)' }}>
+      <div className="eyebrow eyebrow-anime">
         ANIME AMV STUDIO
       </div>
       <h1>Import episode & music.</h1>
@@ -37,10 +37,10 @@ export function NewProjectAnime({
         Feed a full 24-minute anime episode and an audio track. REELMIND will decompose shots, map the musical rhythm grid, detect high-energy moments, and synthesize synchronized 9:16 AMVs.
       </p>
 
-      <div className="panel import-panel" style={{ borderColor: 'rgba(244, 63, 94, 0.3)' }}>
+      <div className="panel import-panel panel-strong">
         {/* Step 1: Anime Episode */}
         <div className="form-step">
-          <span style={{ background: 'rgba(244, 63, 94, 0.2)', color: '#ff94b3' }}>01</span>
+          <span className="badge-anime">01</span>
           <strong>Anime Episode Video</strong>
           <small>Required</small>
         </div>
@@ -53,12 +53,7 @@ export function NewProjectAnime({
           }}
         >
           <span
-            className="upload-icon"
-            style={
-              episode
-                ? undefined
-                : { background: 'rgba(244, 63, 94, 0.12)', color: 'var(--anime-primary)' }
-            }
+            className={`upload-icon ${episode ? '' : 'icon-anime-soft'}`}
           >
             {episode ? <Check size={26} /> : <Film size={26} />}
           </span>
@@ -75,7 +70,7 @@ export function NewProjectAnime({
 
         {/* Step 2: Music Track */}
         <div className="form-step">
-          <span style={{ background: 'rgba(244, 63, 94, 0.2)', color: '#ff94b3' }}>02</span>
+          <span className="badge-anime">02</span>
           <strong>AMV Music Track</strong>
           <small>Required</small>
         </div>
@@ -88,12 +83,7 @@ export function NewProjectAnime({
           }}
         >
           <span
-            className="upload-icon"
-            style={
-              music
-                ? undefined
-                : { background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8' }
-            }
+            className={`upload-icon ${music ? '' : 'icon-music-fallback'}`}
           >
             {music ? <Check size={26} /> : <Music size={26} />}
           </span>
@@ -110,7 +100,7 @@ export function NewProjectAnime({
 
         {/* Step 3: Dialogue Language */}
         <div className="form-step">
-          <span style={{ background: 'rgba(244, 63, 94, 0.2)', color: '#ff94b3' }}>03</span>
+          <span className="badge-anime">03</span>
           <strong>Episode Dialogue Language</strong>
           <small>Required</small>
         </div>
@@ -166,8 +156,7 @@ export function NewProjectAnime({
           </button>
         ) : (
           <button
-            className="primary full"
-            style={{ background: 'var(--anime-gradient)' }}
+            className="primary full btn-anime-primary"
             disabled={!episode || !music || busy}
             onClick={() =>
               onCreate({

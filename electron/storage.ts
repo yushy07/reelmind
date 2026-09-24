@@ -21,13 +21,38 @@ export class Store {
     return effective;
   }
 }
-export function within(root:string,target:string){const rel=path.relative(path.resolve(root),path.resolve(target));return rel===''||(!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel));}
+function normalized(p:string){return process.platform==='win32'?path.resolve(p).toLowerCase():path.resolve(p);}
+export function within(root:string,target:string){
+  const r=normalized(root),t=normalized(target);
+  const rel=path.relative(r,t);
+  // rel is already normalized (lowercased on win32) — check for traversal
+  return rel===''||(!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel));
+}
+export function isAllowedOutputPath(file:string,root:string,blocked:string[]){
+  const f=normalized(file);
+  const work=normalized(path.join(root,'work')),outs=normalized(path.join(root,'outputs'));
+  if(within(work,f)||within(outs,f)||f===work||f===outs) return true;
+  // External savedPath — must NOT be inside any blocked root
+  for(const b of blocked){
+    const nb=normalized(b);
+    if(within(nb,f)||f===nb) return false;
+  }
+  return true;
+}
 export async function removeWorkspace(root:string,target:string){
   const realRoot=await fs.realpath(root);const realTarget=await fs.realpath(target).catch(()=>null);if(!realTarget)return;
-  if(realRoot===realTarget||!within(realRoot,realTarget))throw new Error('Refusing cleanup outside a project workspace.');
+  if(normalized(realRoot)===normalized(realTarget)||!within(realRoot,realTarget))throw new Error('Refusing cleanup outside a project workspace.');
   const stat=await fs.lstat(target);if(stat.isSymbolicLink())throw new Error('Refusing cleanup of a linked workspace.');
   await fs.rm(realTarget,{recursive:true,force:true});
 }
 export async function hash(file:string){const h=createHash('sha256');for await(const part of createReadStream(file))h.update(part);return h.digest('hex');}
-export async function externalDirectory(dir:string,blocked:string[]){const real=await fs.realpath(dir);for(const root of blocked){const resolved=await fs.realpath(root).catch(()=>path.resolve(root));if(within(resolved,real))throw new Error('Choose a folder outside REELMIND’s installation and internal storage.');}return real;}
+export async function externalDirectory(dir:string,blocked:string[]){
+  let real:string;
+  try{ real=await fs.realpath(dir); }catch(e:any){
+    if(e?.code==='ENOENT') throw new Error('That folder no longer exists. Please choose it again in the save dialog.');
+    throw e;
+  }
+  for(const root of blocked){const resolved=await fs.realpath(root).catch(()=>path.resolve(root));if(within(resolved,real))throw new Error('Choose a folder outside REELMIND’s installation and internal storage.');}return real;
+}
 export async function atomicJSON(file:string,value:unknown){await fs.writeFile(file+'.tmp',JSON.stringify(value));await fs.rename(file+'.tmp',file);}
+export async function cleanupTemps(files:string[]){for(const f of files) await fs.unlink(f).catch(()=>{});}

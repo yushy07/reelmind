@@ -1,7 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
-<defs><linearGradient id="a" x1="35" y1="20" x2="226" y2="245" gradientUnits="userSpaceOnUse"><stop stop-color="#d4b8ff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
-<rect x="1" y="1" width="254" height="254" rx="59" fill="#16121f" stroke="#48345e" stroke-width="2"/>
-<path d="M60 190V66H139C176 66 195 85 195 113C195 135 182 150 163 157L195 190H153L119 150H94V190H60ZM94 95V122H136C152 122 161 118 161 109C161 100 152 95 136 95H94Z" fill="url(#a)"/>
-<path d="M104 92L138 110L104 129V92Z" fill="#16121f"/>
-<path d="M198 36L202 47L213 51L202 55L198 66L194 55L183 51L194 47L198 36Z" fill="#e9dbff"/>
+<!-- Lab ink tile -->
+<rect x="1" y="1" width="254" height="254" rx="56" fill="#1c1917" stroke="#44403c" stroke-width="1.5"/>
+<!-- Warm amber sprocket ring -->
+<circle cx="128" cy="128" r="92" fill="none" stroke="#d97706" stroke-width="1.2" opacity="0.35" stroke-dasharray="7 9"/>
+<circle cx="128" cy="128" r="78" fill="#faf6f0" opacity="0.98"/>
+<!-- R letterform in ink -->
+<path d="M72 182V74H138C168 74 186 91 186 116C186 135 174 148 158 154L186 182H154L122 144H98V182H72ZM98 96V122H135C147 122 155 117 155 109C155 101 147 96 135 96H98Z" fill="#1c1917"/>
+<!-- Amber play wedge -->
+<path d="M108 102L138 118L108 134V102Z" fill="#d97706"/>
+<!-- Grain dots -->
+<circle cx="198" cy="52" r="2.2" fill="#d97706" opacity="0.9"/><circle cx="212" cy="64" r="1.4" fill="#a8a29e" opacity="0.7"/><circle cx="46" cy="198" r="1.6" fill="#d97706" opacity="0.6"/>
 </svg>

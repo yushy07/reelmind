@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, LoaderCircle, CheckCircle2, Music, Volume2 } from 'lucide-react';
 import type { Job, AnimeEditStyle, AnimeRerenderOptions } from '../../shared/types';
+import { durationFormat } from '../lib/format';
 
 interface AnimeReelCardProps {
   job: Job;
@@ -9,11 +10,6 @@ interface AnimeReelCardProps {
   busy: boolean;
   onRerender: (conceptId: number, options: AnimeRerenderOptions) => Promise<void>;
 }
-
-const durationFormat = (seconds: number) => {
-  const total = Math.round(Math.max(0, seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-};
 
 export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelCardProps) {
   const conceptId = parseInt(reel.id, 10);
@@ -102,7 +98,7 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelC
               <label className="slider-row">
                 <div className="slider-row-labels">
                   <span>
-                    <Volume2 size={12} style={{ display: 'inline', marginRight: 4 }} />
+                    <Volume2 size={12} className="icon-inline-sm" />
                     Voice & SFX
                   </span>
                   <strong>{sourceAudio}%</strong>
@@ -121,7 +117,7 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelC
               <label className="slider-row">
                 <div className="slider-row-labels">
                   <span>
-                    <Music size={12} style={{ display: 'inline', marginRight: 4 }} />
+                    <Music size={12} className="icon-inline-sm" />
                     Music Track
                   </span>
                   <strong>{music}%</strong>

@@ -58,7 +58,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
         </div>
 
         {!data.runtime.ready && (
-          <div style={{ marginTop: 16 }}>
+          <div className="settings-gap">
             <button
               className="primary"
               disabled={data.setup.running || busy}
@@ -78,7 +78,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
         )}
 
         {data.setup.message && (
-          <p role="status" style={{ marginTop: 12, color: 'var(--text-secondary)' }}>
+          <p role="status" className="settings-status status-secondary">
             {data.setup.message}
           </p>
         )}
@@ -104,7 +104,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
           When enabled, only anonymized transcript text is evaluated for high-energy moment ranking. If unavailable or disabled, 100% offline local analysis takes over automatically.
         </p>
 
-        <label style={{ marginTop: 20 }}>
+        <label className="settings-label-gap">
           PROVIDER PRIORITY
           <select
             value={s.providerOrder[0]}
@@ -124,29 +124,23 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
         </label>
 
         {(['gemini', 'openrouter'] as const).map((p) => (
-          <div className="provider-fields" key={p} style={{ marginTop: 16 }}>
+          <div className="provider-fields field-spaced" key={p}>
             <label>
               {p === 'gemini' ? 'GOOGLE GEMINI API KEY' : 'OPENROUTER API KEY'}
               <span>{data.keys[p] ? '● Key Securely Saved' : '○ Not Connected'}</span>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div className="inline-field">
                 <input
                   type={showKey[p] ? 'text' : 'password'}
                   autoComplete="off"
                   placeholder={data.keys[p] ? 'Leave blank to preserve saved key' : 'Paste your API key here'}
                   value={keys[p] ?? ''}
                   onChange={(e) => setKeys({ ...keys, [p]: e.target.value })}
-                  style={{ paddingRight: 40 }}
+                  className="input-padded"
                 />
                 <button
                   type="button"
                   onClick={() => setShowKey({ ...showKey, [p]: !showKey[p] })}
-                  style={{
-                    position: 'absolute',
-                    right: 12,
-                    color: 'var(--text-muted)',
-                    background: 'none',
-                    border: 'none',
-                  }}
+                  className="icon-btn-plain"
                   title={showKey[p] ? 'Hide Key' : 'Show Key'}
                 >
                   {showKey[p] ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -154,7 +148,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
               </div>
             </label>
 
-            <label style={{ marginTop: 10 }}>
+            <label className="field-spaced-sm">
               MODEL IDENTIFIER
               <input
                 value={p === 'gemini' ? s.geminiModel : s.openrouterModel}
@@ -170,9 +164,8 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
             {data.keys[p] && (
               <button
                 type="button"
-                className="text-button"
+                className="text-button utility-spaced-sm"
                 onClick={() => setKeys({ ...keys, [p]: '' })}
-                style={{ marginTop: 8 }}
               >
                 Mark saved key for removal
               </button>
@@ -180,7 +173,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
           </div>
         ))}
 
-        <label className="check-line" style={{ marginTop: 18 }}>
+        <label className="check-line check-spaced">
           <input
             type="checkbox"
             checked={s.geminiFreeConfirmed}
@@ -216,7 +209,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
             <option value="high">High — Maximum visual fidelity (slower render)</option>
           </select>
         </label>
-        <p style={{ marginTop: 12 }}>
+        <p className="utility-spaced">
           Standard render: 30/60 FPS, H.264 video with source audio or rhythm-mixed AMV track. Scratch files expire after 24 hours. Finished Reels remain available until deleted.
         </p>
       </section>

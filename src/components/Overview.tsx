@@ -12,11 +12,10 @@ import {
   Cpu,
   ShieldCheck,
   Clapperboard,
-  Film,
-  ChevronRight,
   Plus,
 } from 'lucide-react';
 import type { Job } from '../../shared/types';
+import { ProjectRow } from './ProjectRow';
 
 interface OverviewProps {
   studio: 'podcast' | 'anime';
@@ -26,29 +25,6 @@ interface OverviewProps {
   onNewProject: () => void;
   onGoSettings: () => void;
 }
-
-const podcastStages = ['importing', 'transcribing', 'framing', 'analyzing', 'rendering', 'completed'];
-const animeStages = ['importing', 'scenes', 'music', 'transcribing', 'analyzing', 'rendering', 'completed'];
-
-const labels: Record<string, string> = {
-  queued: 'Queued',
-  importing: 'Importing',
-  scenes: 'Detecting shots',
-  music: 'Mapping music',
-  transcribing: 'Transcribing',
-  framing: 'Finding speakers',
-  analyzing: 'Finding moments',
-  rendering: 'Rendering',
-  completed: 'Ready',
-  paused: 'Paused',
-  failed: 'Needs attention',
-  expired: 'Expired',
-};
-
-const durationFormat = (seconds: number) => {
-  const total = Math.round(Math.max(0, seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-};
 
 export function Overview({
   studio,
@@ -127,7 +103,7 @@ export function Overview({
               <AudioLines size={20} />
               <div className="waveform">
                 {Array.from({ length: 27 }, (_, i) => (
-                  <i key={i} style={{ height: 8 + ((i * 17) % 20) }} />
+                  <i key={i} data-h={8 + ((i * 17) % 20)} style={{ height: `${8 + ((i * 17) % 20)}px` }} />
                 ))}
               </div>
               <span>01:24:08</span>
@@ -212,7 +188,7 @@ export function Overview({
 
       {/* Working & Active Projects */}
       {workingJobs.length > 0 && (
-        <section className="projects working-projects" style={{ marginBottom: 28 }}>
+        <section className="projects working-projects projects-section">
           <div className="section-heading">
             <h2>
               Active Processing & Recovery <span>{workingJobs.length}</span>
@@ -255,7 +231,7 @@ export function Overview({
             ))}
           </div>
         ) : (
-          <p className="quiet-list" style={{ color: 'var(--text-muted)' }}>
+          <p className="quiet-list quiet-muted">
             Finished projects will appear here when ready.
           </p>
         )}
@@ -270,73 +246,4 @@ export function Overview({
   );
 }
 
-function ProjectRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
-  const isAnime = job.studio === 'anime';
-  const activeStages = (isAnime ? animeStages : podcastStages).slice(0, -1);
-  const working = activeStages.includes(job.stage);
 
-  const details = [
-    isAnime
-      ? `ANIME (${job.input.language?.toUpperCase() || 'JA'})`
-      : job.input.kind === 'url'
-      ? 'VIDEO LINK'
-      : 'LOCAL VIDEO',
-    new Date(job.createdAt).toLocaleDateString(),
-    job.duration ? durationFormat(job.duration) : null,
-    isAnime
-      ? job.outputs.length
-        ? `${job.outputs.length} AMV ${job.outputs.length === 1 ? 'Edit' : 'Edits'}`
-        : job.animeAnalysis
-        ? `${job.animeAnalysis.shotCount} shots · ${job.animeAnalysis.bpm} BPM`
-        : 'Analysis DB'
-      : job.outputs.length
-      ? `${job.outputs.length} ${job.outputs.length === 1 ? 'Reel' : 'Reels'} Ready`
-      : null,
-  ].filter(Boolean);
-
-  return (
-    <button
-      className="project-row"
-      onClick={() => onOpen(job.id)}
-      aria-label={`Open ${job.name || job.title}, ${labels[job.stage]}`}
-    >
-      <span className={`project-thumb ${isAnime ? 'anime-thumb' : ''}`}>
-        {isAnime ? <Sparkles size={22} /> : <Film size={22} />}
-      </span>
-      <span className="project-row-content">
-        <span className="project-row-kicker">{details.join('  ·  ')}</span>
-        <strong>{job.name || job.title}</strong>
-        <small>
-          {working
-            ? job.message
-            : job.stage === 'completed'
-            ? isAnime
-              ? job.outputs.length
-                ? `${job.outputs.length} AMV Edits ready to save`
-                : 'Analysis Database ready'
-              : job.outputs.every((r) => r.savedPath)
-              ? 'Saved to your folder'
-              : 'Ready to review and save'
-            : job.stage === 'paused'
-            ? 'Resume before recovery expires'
-            : job.stage === 'failed'
-            ? 'Open to review and retry'
-            : job.title}
-        </small>
-        {working && (
-          <progress
-            className="row-progress"
-            value={job.progress}
-            max={100}
-            aria-label={`${job.name || job.title} progress`}
-          />
-        )}
-      </span>
-      <span className={`badge ${job.stage}`}>
-        {labels[job.stage]}
-        {working ? ` · ${Math.floor(job.progress)}%` : ''}
-      </span>
-      <ChevronRight className="project-row-chevron" size={18} />
-    </button>
-  );
-}

@@ -15,19 +15,19 @@ export function Header({ page, studio, jobName, hasActiveJob }: HeaderProps) {
     <header>
       <div className="header-breadcrumbs">
         <span className="breadcrumb-chip">
-          <Layers size={13} style={{ color: 'var(--text-muted)' }} />
+          <Layers size={13} className="muted-icon-muted" />
           <span>Workspace</span>
         </span>
-        <ChevronRight size={12} style={{ color: 'var(--text-subtle)' }} />
+        <ChevronRight size={12} className="muted-icon-subtle" />
         <span className="breadcrumb-chip">
           {isAnime ? (
-            <Sparkles size={12} style={{ color: 'var(--anime-primary)' }} />
+            <Sparkles size={12} className="anime-icon" />
           ) : (
-            <Mic size={12} style={{ color: 'var(--podcast-primary)' }} />
+            <Mic size={12} className="podcast-icon" />
           )}
           <span>{isAnime ? 'Anime Studio' : 'Podcast Studio'}</span>
         </span>
-        <ChevronRight size={12} style={{ color: 'var(--text-subtle)' }} />
+        <ChevronRight size={12} className="muted-icon-subtle" />
         <span className="breadcrumb-chip current">
           {jobName
             ? jobName

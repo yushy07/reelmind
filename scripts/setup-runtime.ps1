@@ -5,11 +5,19 @@ New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
 function Download-Asset([string]$url,[string]$destination) {
  if (-not (Test-Path -LiteralPath $destination)) { Write-Output ('Downloading '+[IO.Path]::GetFileName($destination)); Invoke-WebRequest -Uri $url -OutFile ($destination+'.download'); Move-Item -LiteralPath ($destination+'.download') -Destination $destination }
 }
+function Verify-SHA256([string]$file,[string]$expected) {
+ if (-not $expected) { return }
+ $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+ if ($actual -ne $expected.ToLowerInvariant()) { throw "SHA256 mismatch for $file`n expected $expected`n actual   $actual" }
+}
 $pythonDir = Join-Path $runtimeRoot 'python'
 New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
 $pythonExe = Join-Path $pythonDir 'python.exe'
+# Pin Python embed hash: update when bumping the URL above.
+$pythonHash = ''
 if (-not (Test-Path -LiteralPath $pythonExe)) {
  Download-Asset 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' (Join-Path $runtimeRoot 'python.zip')
+ Verify-SHA256 (Join-Path $runtimeRoot 'python.zip') $pythonHash
  Expand-Archive -LiteralPath (Join-Path $runtimeRoot 'python.zip') -DestinationPath $pythonDir -Force
  # Runtime configuration generated during dependency installation, not application source.
  [IO.File]::WriteAllText((Join-Path $pythonDir 'python312._pth'),"python312.zip`n.`nLib/site-packages`nimport site`n")
@@ -19,10 +27,13 @@ if (-not (Test-Path (Join-Path $pythonDir 'Lib/site-packages/pip'))) { & $python
 & $pythonExe -m pip install --disable-pip-version-check --no-warn-script-location -r (Join-Path $PSScriptRoot '../workers/requirements.txt')
 if ($LASTEXITCODE) { throw 'Worker dependency installation failed' }
 $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+# Pin FFmpeg: fill ffmpegHash after `Get-FileHash ffmpeg.zip` on a trusted download.
+$ffmpegHash = ''
 if (-not (Test-Path (Join-Path $runtimeRoot 'ffmpeg.exe'))) {
  if ($ffmpeg) { Copy-Item -LiteralPath $ffmpeg.Source -Destination (Join-Path $runtimeRoot 'ffmpeg.exe'); Copy-Item -LiteralPath (Join-Path (Split-Path $ffmpeg.Source) 'ffprobe.exe') -Destination (Join-Path $runtimeRoot 'ffprobe.exe') }
  else {
   Download-Asset 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-9.0.zip' (Join-Path $runtimeRoot 'ffmpeg.zip')
+  Verify-SHA256 (Join-Path $runtimeRoot 'ffmpeg.zip') $ffmpegHash
   Expand-Archive -LiteralPath (Join-Path $runtimeRoot 'ffmpeg.zip') -DestinationPath (Join-Path $runtimeRoot 'ffmpeg-dist') -Force
   Get-ChildItem -LiteralPath (Join-Path $runtimeRoot 'ffmpeg-dist') -Recurse -Filter '*.exe' | Where-Object Name -In @('ffmpeg.exe','ffprobe.exe') | Copy-Item -Destination $runtimeRoot
  }

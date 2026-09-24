@@ -13,6 +13,8 @@ import { NewProjectAnime } from './components/NewProjectAnime';
 import { ProjectDetail } from './components/ProjectDetail';
 import { Library } from './components/Library';
 import { SettingsView } from './components/SettingsView';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { podcastStages, animeStages } from './lib/stages';
 
 declare global {
   interface Window {
@@ -21,8 +23,6 @@ declare global {
 }
 
 const api = window.reelmind;
-const podcastStages = ['importing', 'transcribing', 'framing', 'analyzing', 'rendering', 'completed'];
-const animeStages = ['importing', 'scenes', 'music', 'transcribing', 'analyzing', 'rendering', 'completed'];
 
 function App() {
   const [data, setData] = useState<Status | null>(null);
@@ -83,7 +83,7 @@ function App() {
   const studioJobs = data?.jobs.filter((j) => (studio === 'anime' ? j.studio === 'anime' : j.studio !== 'anime')) || [];
   const completed = studioJobs.filter((j) => j.stage === 'completed').length;
   const activeJob = data?.jobs.find((j) =>
-    (j.studio === 'anime' ? animeStages : podcastStages).slice(0, -1).includes(j.stage)
+    (j.studio === 'anime' ? animeStages : podcastStages).slice(0, -1).includes(j.stage as never)
   );
 
   return (
@@ -114,13 +114,13 @@ function App() {
 
         {/* Global Error Banner */}
         {error && (
-          <div className="alert" role="alert" style={{ margin: '16px 40px 0' }}>
+          <div className="alert alert-banner" role="alert">
             <AlertCircle size={18} />
             <span>{error}</span>
             <button
               onClick={() => setError('')}
               aria-label="Dismiss error"
-              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'inherit' }}
+              className="btn-ghost-dismiss"
             >
               <X size={16} />
             </button>
@@ -134,7 +134,7 @@ function App() {
             <button
               onClick={() => setToast('')}
               aria-label="Dismiss message"
-              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}
+              className="btn-ghost-white"
             >
               <X size={16} />
             </button>
@@ -235,4 +235,8 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);

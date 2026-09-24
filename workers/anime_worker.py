@@ -178,133 +178,140 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
     cap = cv2.VideoCapture(source_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video file: {source_path}")
+    try:
+        fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        target_w, target_h = 320, 180
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    target_w, target_h = 320, 180
+        det_type, detector = get_face_detector(models_dir)
+        if det_type == 'yunet' and detector is not None:
+            detector.setInputSize((target_w, target_h))
 
-    det_type, detector = get_face_detector(models_dir)
-    if det_type == 'yunet' and detector is not None:
-        detector.setInputSize((target_w, target_h))
+        results = []
+        num_shots = len(shots)
+        sample_interval_sec = 0.25
+        sample_step_frames = max(1, int(fps * sample_interval_sec))
 
-    results = []
-    num_shots = len(shots)
-    sample_interval_sec = 0.25
-    sample_step_frames = max(1, int(fps * sample_interval_sec))
+        for shot_idx, shot in enumerate(shots):
+            start_sec = shot['start']
+            end_sec = shot['end']
+            dur = shot['duration']
 
-    for shot_idx, shot in enumerate(shots):
-        start_sec = shot['start']
-        end_sec = shot['end']
-        dur = shot['duration']
+            start_f = max(0, int(start_sec * fps))
+            end_f = min(total_frames, int(end_sec * fps)) if total_frames > 0 else int(end_sec * fps)
 
-        start_f = max(0, int(start_sec * fps))
-        end_f = min(total_frames, int(end_sec * fps)) if total_frames > 0 else int(end_sec * fps)
+            prev_gray = None
+            motion_samples = []
+            sharpness_samples = []
+            brightness_samples = []
 
-        prev_gray = None
-        motion_samples = []
-        sharpness_samples = []
-        brightness_samples = []
-
-        if end_f <= start_f:
-            frame_indices = [start_f]
-        else:
-            frame_indices = list(range(start_f, end_f, sample_step_frames))
-            if not frame_indices:
+            if end_f <= start_f:
                 frame_indices = [start_f]
-            if len(frame_indices) > 20:
-                indices = np.linspace(0, len(frame_indices) - 1, 20).astype(int)
-                frame_indices = [frame_indices[i] for i in indices]
+            else:
+                frame_indices = list(range(start_f, end_f, sample_step_frames))
+                if not frame_indices:
+                    frame_indices = [start_f]
+                if len(frame_indices) > 20:
+                    indices = np.linspace(0, len(frame_indices) - 1, 20).astype(int)
+                    frame_indices = [frame_indices[i] for i in indices]
 
-        best_face_ratio = 0.0
-        best_face_conf = 0.0
-        face_count = 0
+            best_face_ratio = 0.0
+            best_face_conf = 0.0
+            face_count = 0
 
-        face_check_frames = set()
-        if len(frame_indices) >= 2:
-            face_check_frames.add(frame_indices[len(frame_indices) // 3])
-            face_check_frames.add(frame_indices[(len(frame_indices) * 2) // 3])
-        elif frame_indices:
-            face_check_frames.add(frame_indices[0])
+            face_check_frames = set()
+            if len(frame_indices) >= 2:
+                face_check_frames.add(frame_indices[len(frame_indices) // 3])
+                face_check_frames.add(frame_indices[(len(frame_indices) * 2) // 3])
+            elif frame_indices:
+                face_check_frames.add(frame_indices[0])
 
-        for f_idx in frame_indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                continue
+            for f_idx in frame_indices:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    continue
 
-            small = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
-            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                small = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
-            sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
-            sharpness_samples.append(float(sharpness))
-            brightness_samples.append(float(np.mean(gray) / 255.0))
+                sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+                sharpness_samples.append(float(sharpness))
+                brightness_samples.append(float(np.mean(gray) / 255.0))
 
-            t_sec = f_idx / fps
-            if prev_gray is not None:
-                diff = cv2.absdiff(gray, prev_gray)
-                mean_diff = float(np.mean(diff) / 255.0)
-                std_diff = float(np.std(diff) / 255.0)
-                motion_val = float(mean_diff + 0.5 * std_diff)
-                motion_samples.append((t_sec, motion_val))
-            prev_gray = gray
+                t_sec = f_idx / fps
+                if prev_gray is not None:
+                    diff = cv2.absdiff(gray, prev_gray)
+                    mean_diff = float(np.mean(diff) / 255.0)
+                    std_diff = float(np.std(diff) / 255.0)
+                    motion_val = float(mean_diff + 0.5 * std_diff)
+                    motion_samples.append((t_sec, motion_val))
+                prev_gray = gray
 
-            if f_idx in face_check_frames and detector is not None:
-                try:
-                    if det_type == 'anime_face_detector':
-                        preds = detector(small)
-                        if preds and len(preds) > 0:
-                            face_count = max(face_count, len(preds))
-                            for p in preds:
-                                bbox = p.get('bbox', [0, 0, 0, 0, 0])
-                                w = max(0, bbox[2] - bbox[0])
-                                h = max(0, bbox[3] - bbox[1])
-                                ratio = (w * h) / (target_w * target_h)
-                                best_face_ratio = max(best_face_ratio, float(ratio))
-                                best_face_conf = max(best_face_conf, float(bbox[4] if len(bbox) > 4 else 0.8))
-                    elif det_type == 'yunet':
-                        res = detector.detect(small)
-                        if res[1] is not None and len(res[1]) > 0:
-                            detected_faces = res[1]
-                            face_count = max(face_count, len(detected_faces))
-                            for f in detected_faces:
-                                w, h, conf = f[2], f[3], f[14]
-                                ratio = (w * h) / (target_w * target_h)
-                                best_face_ratio = max(best_face_ratio, float(ratio))
-                                best_face_conf = max(best_face_conf, float(conf))
-                except Exception:
-                    pass
+                if f_idx in face_check_frames and detector is not None:
+                    try:
+                        if det_type == 'anime_face_detector':
+                            preds = detector(small)
+                            if preds and len(preds) > 0:
+                                face_count = max(face_count, len(preds))
+                                for p in preds:
+                                    bbox = p.get('bbox', [0, 0, 0, 0, 0])
+                                    w = max(0, bbox[2] - bbox[0])
+                                    h = max(0, bbox[3] - bbox[1])
+                                    ratio = (w * h) / (target_w * target_h)
+                                    best_face_ratio = max(best_face_ratio, float(ratio))
+                                    best_face_conf = max(best_face_conf, float(bbox[4] if len(bbox) > 4 else 0.8))
+                        elif det_type == 'yunet':
+                            res = detector.detect(small)
+                            if res[1] is not None and len(res[1]) > 0:
+                                detected_faces = res[1]
+                                face_count = max(face_count, len(detected_faces))
+                                for f in detected_faces:
+                                    w, h, conf = f[2], f[3], f[14]
+                                    ratio = (w * h) / (target_w * target_h)
+                                    best_face_ratio = max(best_face_ratio, float(ratio))
+                                    best_face_conf = max(best_face_conf, float(conf))
+                    except Exception:
+                        pass
 
-        if motion_samples:
-            peak_sample = max(motion_samples, key=lambda x: x[1])
-            motion_peak_time = round(peak_sample[0], 3)
-            motion_peak = round(peak_sample[1], 4)
-            motion_avg = round(float(np.mean([m[1] for m in motion_samples])), 4)
-        else:
-            motion_peak_time = round(start_sec + dur * 0.4, 3)
-            motion_peak = 0.0
-            motion_avg = 0.0
+            if motion_samples:
+                peak_sample = max(motion_samples, key=lambda x: x[1])
+                motion_peak_time = round(peak_sample[0], 3)
+                motion_peak = round(peak_sample[1], 4)
+                motion_avg = round(float(np.mean([m[1] for m in motion_samples])), 4)
+            else:
+                motion_peak_time = round(start_sec + dur * 0.4, 3)
+                motion_peak = 0.0
+                motion_avg = 0.0
 
-        sharpness_avg = round(float(np.mean(sharpness_samples)), 2) if sharpness_samples else 0.0
-        brightness_avg = round(float(np.mean(brightness_samples)), 4) if brightness_samples else 0.5
-        face_score = round(min(1.0, best_face_ratio * 4.0 * 0.6 + best_face_conf * 0.4), 4) if face_count > 0 else 0.0
+            sharpness_avg = round(float(np.mean(sharpness_samples)), 2) if sharpness_samples else 0.0
+            brightness_avg = round(float(np.mean(brightness_samples)), 4) if brightness_samples else 0.5
+            face_score = round(min(1.0, best_face_ratio * 4.0 * 0.6 + best_face_conf * 0.4), 4) if face_count > 0 else 0.0
 
-        results.append({
-            'shot_id': shot['id'],
-            'motion_peak': motion_peak,
-            'motion_peak_time': motion_peak_time,
-            'motion_avg': motion_avg,
-            'sharpness_avg': sharpness_avg,
-            'brightness_avg': brightness_avg,
-            'face_count': face_count,
-            'face_score': face_score,
-            'max_face_ratio': round(best_face_ratio, 4)
-        })
+            results.append({
+                'shot_id': shot['id'],
+                'motion_peak': motion_peak,
+                'motion_peak_time': motion_peak_time,
+                'motion_avg': motion_avg,
+                'sharpness_avg': sharpness_avg,
+                'brightness_avg': brightness_avg,
+                'face_count': face_count,
+                'face_score': face_score,
+                'max_face_ratio': round(best_face_ratio, 4)
+            })
 
-        if emit and (shot_idx % 10 == 0 or shot_idx == num_shots - 1):
-            pct = 0.05 + 0.50 * ((shot_idx + 1) / num_shots)
-            emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots}')
+            if emit and (shot_idx % 10 == 0 or shot_idx == num_shots - 1):
+                pct = 0.05 + 0.50 * ((shot_idx + 1) / num_shots)
+                emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots}')
 
-    cap.release()
+    finally:
+        cap.release()
+        try:
+            import torch  # type: ignore
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
     return results
 
 def analyze_audio_signals(audio_path, shots):

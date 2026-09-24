@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, Notification, protocol, net } from
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { Store } from './storage';
+import { Store, isAllowedOutputPath } from './storage';
 import { Service } from './service';
 import { settingsSchema } from './core';
 import { run } from './process';
@@ -32,15 +32,35 @@ app.whenReady().then(async()=>{
     if(window?.isFocused())window.webContents.send('open-project',job.id);
   });
   protocol.handle('reel',async request=>{
-    const url=new URL(request.url);const [jobId,reelId]=url.pathname.split('/').filter(Boolean);const job=store.get(jobId);const reel=job?.outputs.find(r=>r.id===reelId);
-    if(url.hostname!=='output'||!reel)return new Response('Not found',{status:404});
-    return net.fetch(pathToFileURL(reel.savedPath||reel.file).toString(),{headers:request.headers});
+    const url=new URL(request.url);
+    const parts=url.pathname.split('/').filter(Boolean);
+    if(url.hostname!=='output'||parts.length!==2)return new Response('Not found',{status:404});
+    const [jobId,reelId]=parts;
+    if(!/^[\da-f-]{36}$/.test(jobId)||!/^\d{2}$/.test(reelId))return new Response('Not found',{status:404});
+    const job=store.get(jobId);const reel=job?.outputs.find(r=>r.id===reelId);
+    if(!reel)return new Response('Not found',{status:404});
+    const file=reel.savedPath||reel.file;
+    const blocked=[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')];
+    if(!isAllowedOutputPath(file,root,blocked))return new Response('Not found',{status:404});
+    try{ return net.fetch(pathToFileURL(file).toString(),{headers:request.headers}); }catch{ return new Response('Not found',{status:404}); }
   });
   const smoke=selfTest||!app.isPackaged&&process.env.REELMIND_SMOKE==='1';
-  window=new BrowserWindow({width:1400,height:940,minWidth:1000,minHeight:740,show:!smoke,backgroundColor:'#101015',title:'REELMIND',icon:path.join(app.getAppPath(),'assets/icon.png'),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:smoke}});
+  window=new BrowserWindow({width:1400,height:940,minWidth:1000,minHeight:740,show:!smoke,backgroundColor:'#faf6f0',title:'REELMIND',icon:path.join(app.getAppPath(),'assets/icon.png'),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:smoke}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',event=>event.preventDefault());
   window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
+  const isDev = !app.isPackaged && !!process.env.REELMIND_DEV_URL;
+  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const connectSrc = isDev ? "connect-src 'self' ws://127.0.0.1:5173" : "connect-src 'self'";
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: reel:; media-src 'self' reel:; ${connectSrc}; font-src 'self'; object-src 'none'`
+        ]
+      }
+    });
+  });
   const handle=(name:string,fn:(...args:any[])=>any)=>ipcMain.handle(name,(event,...args)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Untrusted request');return fn(...args);});
   handle('status',async()=>({jobs:store.jobs(),settings:store.settings(),keys:keyPresence,runtime:await service.readiness(),hardware,setup,turbo:service.models.state} satisfies Status));
   handle('pick-video',async()=>{const result=await dialog.showOpenDialog(window,{title:'Choose a video',properties:['openFile'],filters:[{name:'Video',extensions:['mp4','mov','mkv','avi','webm']}]});const file=result.filePaths[0];if(result.canceled||!file)return null;service.allowedInputs.add(file);return file;});
@@ -59,11 +79,24 @@ app.whenReady().then(async()=>{
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
   handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
   handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);if(next.transcriptionMode==='turbo'&&!service.models.state.ready)throw new Error('Download and verify Turbo before selecting it.');const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
+  let lastSetupAt=0;
   handle('setup',async()=>{
     if(setup.running)return;
     if(app.isPackaged)throw new Error('The packaged local engine is incomplete. Reinstall REELMIND from a complete installer.');
+    const now=Date.now(); if(now-lastSetupAt<60_000) throw new Error('Setup was recently triggered — wait a minute before retrying.');
+    lastSetupAt=now;
+    const answer=await dialog.showMessageBox(window,{type:'question',message:'Download the local AI engine (~1.5 GB)?',detail:'This one-time download fetches speech models, PyTorch runtime and fonts. Your videos stay local.',buttons:['Cancel','Download'],defaultId:1,cancelId:0});
+    if(answer.response!==1) return;
+    const logPath=path.join(root,'setup.log');
+    await fs.appendFile(logPath,`[${new Date().toISOString()}] Setup triggered\n`).catch(()=>{});
     setup.running=true;setup.error=undefined;setup.message='Downloading local engine and models…';changed();
-    void run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts/setup-runtime.ps1')],{progress:line=>{setup.message=line.slice(-200);changed();}}).then(()=>{setup.message='Local engine ready';}).catch(e=>{setup.error=e.message;}).finally(()=>{setup.running=false;changed();});
+    void run('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts/setup-runtime.ps1')],{progress:line=>{setup.message=line.slice(-200);changed();}}).then(async()=>{
+      setup.message='Local engine ready';
+      await fs.appendFile(logPath,`[${new Date().toISOString()}] Setup completed successfully\n`).catch(()=>{});
+    }).catch(async e=>{
+      setup.error=e.message;
+      await fs.appendFile(logPath,`[${new Date().toISOString()}] Setup failed: ${e.message}\n`).catch(()=>{});
+    }).finally(()=>{setup.running=false;changed();});
   });
   await service.models.init();
   await service.models.cleanup(store.now());

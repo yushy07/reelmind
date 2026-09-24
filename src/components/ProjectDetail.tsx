@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import type { Job, AnimeRerenderOptions } from '../../shared/types';
 import { AnimeReelCard } from './AnimeReelCard';
+import { durationFormat } from '../lib/format';
+import { podcastStages, animeStages, stageLabels } from '../lib/stages';
 
 interface ProjectDetailProps {
   job: Job;
@@ -25,28 +27,7 @@ interface ProjectDetailProps {
   back: () => void;
 }
 
-const podcastStages = ['importing', 'transcribing', 'framing', 'analyzing', 'rendering', 'completed'];
-const animeStages = ['importing', 'scenes', 'music', 'transcribing', 'analyzing', 'rendering', 'completed'];
-
-const labels: Record<string, string> = {
-  queued: 'Queued',
-  importing: 'Importing',
-  scenes: 'Detecting shots',
-  music: 'Mapping music',
-  transcribing: 'Transcribing',
-  framing: 'Finding speakers',
-  analyzing: 'Finding moments',
-  rendering: 'Rendering 9:16',
-  completed: 'Ready',
-  paused: 'Paused',
-  failed: 'Needs attention',
-  expired: 'Expired',
-};
-
-const durationFormat = (seconds: number) => {
-  const total = Math.round(Math.max(0, seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-};
+const detailStageLabels: Record<string, string> = { ...stageLabels, rendering: 'Rendering 9:16' };
 
 export function ProjectDetail({
   job,
@@ -62,7 +43,7 @@ export function ProjectDetail({
   const recover = ['paused', 'failed'].includes(job.stage);
   const hours = job.cleanupAt ? Math.max(0, (job.cleanupAt - Date.now()) / 3600000) : 0;
   const currentStage = recover ? job.checkpoint : job.stage;
-  const stageIndex = currentStages.indexOf(currentStage);
+  const stageIndex = (currentStages as readonly string[]).indexOf(currentStage);
   const savedCount = job.outputs.filter((reel) => reel.savedPath).length;
 
   return (
@@ -81,7 +62,7 @@ export function ProjectDetail({
           {job.name && job.name !== job.title && <small>Source Video: {job.title}</small>}
           <p>{job.message}</p>
         </div>
-        <span className={`badge ${job.stage}`}>{labels[job.stage]}</span>
+        <span className={`badge ${job.stage}`}>{detailStageLabels[job.stage]}</span>
       </div>
 
       {/* Live Pipeline Tracker */}
@@ -94,11 +75,11 @@ export function ProjectDetail({
                   ? 'LAST SAVED STAGE'
                   : `${isAnime ? 'ANIME STUDIO' : (job.provider || 'LOCAL').toUpperCase()} · ACTIVE PIPELINE`}
               </span>
-              <h2>{recover ? labels[currentStage] || 'Ready to resume' : labels[job.stage]}</h2>
+              <h2>{recover ? detailStageLabels[currentStage] || 'Ready to resume' : detailStageLabels[job.stage]}</h2>
             </div>
             <span>
               {Math.floor(job.progress)}
-              <small style={{ fontSize: '18px', marginLeft: 4 }}>%</small>
+              <small className="bar-percentage">%</small>
             </span>
           </div>
 
@@ -111,7 +92,7 @@ export function ProjectDetail({
             {currentStages.slice(0, -1).map((s, i) => (
               <div key={s} className={stageIndex > i ? 'finished' : stageIndex === i ? 'current' : ''}>
                 <span>{stageIndex > i ? <Check size={16} /> : i + 1}</span>
-                {labels[s]}
+                {detailStageLabels[s]}
               </div>
             ))}
           </div>
@@ -126,7 +107,7 @@ export function ProjectDetail({
                 <Pause size={16} /> Pause Processing
               </button>
             )}
-            <small style={{ color: 'var(--text-muted)' }}>
+            <small className="meta-muted">
               {isAnime
                 ? job.animeAnalysis
                   ? `${job.animeAnalysis.shotCount} shots detected so far. `
@@ -245,7 +226,7 @@ export function ProjectDetail({
 
           {/* Candidate Moments Grid */}
           {!!job.animeAnalysis.candidates?.length && (
-            <div className="candidate-moments-section" style={{ marginTop: 24 }}>
+            <div className="candidate-moments-section section-spaced">
               <div className="candidate-heading">
                 <h4>Ranked Candidate Moments</h4>
                 <small>Top moments analyzed for beat alignment</small>
@@ -363,10 +344,9 @@ export function ProjectDetail({
 
       {/* Danger Zone */}
       <button
-        className="danger-text"
+        className="danger-text card-spaced"
         disabled={busy}
         onClick={() => onAction('delete')}
-        style={{ marginTop: 32 }}
       >
         <Trash2 size={15} /> Delete Project
       </button>
