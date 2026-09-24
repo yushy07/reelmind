@@ -41,6 +41,27 @@ function App() {
     [refresh, setToast]
   );
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName || '');
+      if (e.key === 'Escape') {
+        if (selected) {
+          setSelected(null);
+        } else if (page !== 'home') {
+          go('home');
+        }
+      } else if (!isInput && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        go('new');
+      } else if (!isInput && (e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        go('settings');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selected, page]);
+
   const go = (p: typeof page) => {
     setPage(p);
     setSelected(null);
@@ -127,10 +148,10 @@ function App() {
               job={job}
               busy={busy}
               onAction={(action) => act(() => api.action(job.id, action))}
-              onSave={() =>
+              onSave={(reelId) =>
                 act(async () => {
-                  const dest = await api.save(job.id);
-                  if (dest) setToast(`Your Reels are saved in ${dest}`);
+                  const dest = await api.save(job.id, reelId);
+                  if (dest) setToast(reelId ? `Reel saved in ${dest}` : `Your Reels are saved in ${dest}`);
                 })
               }
               onRerender={async (conceptId, opts) => {

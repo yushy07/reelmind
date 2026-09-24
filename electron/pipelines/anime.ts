@@ -55,11 +55,21 @@ export class AnimePipeline {
       }
       const media = await probe(this.ctx.runtime, episodeSource, signal);
       this.ctx.update(job, { duration: media.duration });
+      const lang = job.input.language || 'ja';
+      let selectedAudioIdx = 0;
+      if (media.audioStreams && media.audioStreams.length > 1) {
+        const match = media.audioStreams.find((s: { index: number; streamIndex: number; language: string; title: string }) =>
+          lang === 'ja'
+            ? s.language.includes('ja') || s.language.includes('jpn') || s.title.toLowerCase().includes('jap')
+            : s.language.includes('en') || s.language.includes('eng') || s.title.toLowerCase().includes('eng')
+        );
+        if (match) selectedAudioIdx = match.index;
+      }
       const audio = path.join(work, 'audio.wav');
       if (!await exists(audio)) {
         await run(
           path.join(this.ctx.runtime, 'ffmpeg.exe'),
-          ['-y', '-i', episodeSource, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', audio + '.part.wav'],
+          ['-y', '-i', episodeSource, '-map', `0:a:${selectedAudioIdx}`, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', audio + '.part.wav'],
           { signal }
         );
         await fs.rename(audio + '.part.wav', audio);
@@ -110,7 +120,6 @@ export class AnimePipeline {
         },
         this.ctx.checkpoints.fingerprint({ music: await hash(musicSource), v: 1 })
       );
-      const lang = job.input.language || 'ja';
       phase('transcribing', 74, `Transcribing dialogue (${lang === 'ja' ? 'Japanese' : 'English'})`);
       const transcriptFile = path.join(work, 'transcript.json');
       const transcript = await this.ctx.checkpoints.checkpoint<Transcript>(
@@ -196,13 +205,14 @@ export class AnimePipeline {
         },
         this.ctx.checkpoints.fingerprint({ candidates: await hash(candidatesFile), v: 1 })
       );
-      phase('rendering', 92, `Rendering ${concepts.length} vertical 9:16 AMVs`);
+      const aspect = job.input.outputAspect || '9:16';
+      phase('rendering', 92, `Rendering ${concepts.length} ${aspect} AMVs`);
       for (let i = 0; i < concepts.length; i++) {
         signal.throwIfAborted();
         const concept = concepts[i];
         const id = String(concept.id).padStart(2, '0');
         const file = path.join(output, `reelmind_${id}.mp4`);
-        const plan = planAnimeEdit(concept, musicMap, shots, 30);
+        const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect);
         plan.renderQuality = this.ctx.store.settings().quality;
         const planHash = this.ctx.checkpoints.fingerprint({ plan, quality: this.ctx.store.settings().quality });
         const previous = job.outputs.find((r) => r.id === id);
@@ -229,7 +239,8 @@ export class AnimePipeline {
           this.ctx.hardware,
           signal,
           (n) => this.ctx.update(job, { progress: 92 + ((i + n) / concepts.length) * 7 }),
-          (message) => this.ctx.update(job, { fallbacks: [...new Set([...(job.fallbacks || []), message])], message })
+          (message) => this.ctx.update(job, { fallbacks: [...new Set([...(job.fallbacks || []), message])], message }),
+          selectedAudioIdx
         );
         await fs.rename(partial, file);
         job.outputs = job.outputs.filter((r) => r.id !== id);
@@ -354,13 +365,26 @@ export class AnimePipeline {
         if (jc) jc.style = options.style;
       }
     }
-    const plan = planAnimeEdit(concept, musicMap, shots, 30);
+    const aspect = options.aspectRatio || job.input.outputAspect || '9:16';
+    const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect);
     plan.renderQuality = this.ctx.store.settings().quality;
     if (options.sourceAudioMix !== undefined) {
       plan.audio.sourceAudioMix = Math.max(0, Math.min(1, options.sourceAudioMix));
     }
     if (options.musicMix !== undefined) {
       plan.audio.musicMix = Math.max(0, Math.min(1, options.musicMix));
+    }
+
+    const media = await probe(this.ctx.runtime, episodeSource, signal);
+    const lang = job.input.language || 'ja';
+    let selectedAudioIdx = 0;
+    if (media.audioStreams && media.audioStreams.length > 1) {
+      const match = media.audioStreams.find((s: { index: number; streamIndex: number; language: string; title: string }) =>
+        lang === 'ja'
+          ? s.language.includes('ja') || s.language.includes('jpn') || s.title.toLowerCase().includes('jap')
+          : s.language.includes('en') || s.language.includes('eng') || s.title.toLowerCase().includes('eng')
+      );
+      if (match) selectedAudioIdx = match.index;
     }
 
     const clipId = String(concept.id).padStart(2, '0');
@@ -384,7 +408,8 @@ export class AnimePipeline {
       this.ctx.hardware,
       signal,
       (progress) => this.ctx.update(job, { message: `Re-rendering AMV ${concept.id} · ${Math.floor(progress * 100)}%` }),
-      (message) => this.ctx.update(job, { fallbacks: [...new Set([...(job.fallbacks || []), message])], message })
+      (message) => this.ctx.update(job, { fallbacks: [...new Set([...(job.fallbacks || []), message])], message }),
+      selectedAudioIdx
     );
     await fs.rename(partial, file);
     job.outputs = job.outputs.filter((r) => r.id !== clipId);

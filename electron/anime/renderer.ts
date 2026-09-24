@@ -9,15 +9,24 @@ import type { AnimeEditPlan } from '../../shared/types';
  * Trims shots, reframes to 9:16 portrait, applies camera punch/flash dynamics,
  * and mixes episode audio with the background music track.
  */
-export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): string {
+export function buildAnimeFilterGraph(
+  plan: AnimeEditPlan,
+  hasMusic = true,
+  runtime?: string,
+  audioIndex = 0
+): string {
   const cuts = plan.cuts;
   const videoTrims: string[] = [];
   const audioTrims: string[] = [];
 
+  const aspect = plan.aspectRatio || '9:16';
+  const targetW = aspect === '16:9' ? 1920 : 1080;
+  const targetH = aspect === '16:9' ? 1080 : (aspect === '1:1' ? 1080 : 1920);
+
   cuts.forEach((cut, i) => {
     const dur = Math.max(0.1, cut.duration);
-    const scaledW = Math.ceil(1080 * cut.zoom / 2) * 2;
-    const scaledH = Math.ceil(1920 * cut.zoom / 2) * 2;
+    const scaledW = Math.ceil(targetW * cut.zoom / 2) * 2;
+    const scaledH = Math.ceil(targetH * cut.zoom / 2) * 2;
     const travel = cut.endCenter - cut.center;
     const centerExpr = `${cut.center}+(${travel})*(0.5-0.5*cos(PI*min(t/${dur},1)))`;
 
@@ -42,7 +51,7 @@ export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): str
     }
 
     let filterChain = `[0:v]trim=start=${cut.sourceStart}:end=${cut.sourceEnd},setpts=${ptsExpr}${temporalFilter}`;
-    filterChain += `,scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=1080:1920:x='${cropX}':y='${cropY}'`;
+    filterChain += `,scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}:x='${cropX}':y='${cropY}'`;
 
     if (cut.isolateCharacter) {
       filterChain += `,split=2[bg_raw${i}][fg_raw${i}];[bg_raw${i}]gblur=sigma=12:steps=2[bg_blur${i}];[fg_raw${i}]vibrance=intensity=0.5,vignette=angle=PI/3.5[fg_vig${i}];[bg_blur${i}][fg_vig${i}]blend=all_mode=screen:all_opacity=0.6`;
@@ -65,12 +74,19 @@ export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): str
     } else if (cut.velocityCurve === 'impact_ramp') {
       audioSpeed = ',atempo=1.54';
     }
-    audioTrims.push(`[0:a]atrim=start=${cut.sourceStart}:end=${cut.sourceEnd},asetpts=PTS-STARTPTS${audioSpeed},aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`);
+    const audioSelector = audioIndex > 0 ? `[0:a:${audioIndex}]` : '[0:a]';
+    audioTrims.push(`${audioSelector}atrim=start=${cut.sourceStart}:end=${cut.sourceEnd},asetpts=PTS-STARTPTS${audioSpeed},aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`);
   });
 
   // Video stream concatenation
   const vconcatInputs = cuts.map((_, i) => `[v${i}]`).join('');
-  const vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,format=yuv420p[vout]`;
+  let vconcat: string;
+  if (plan.captions && runtime) {
+    const escapedFonts = path.join(runtime, 'fonts').replaceAll('\\', '/').replace(':', '\\:').replaceAll("'", "\\'");
+    vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,ass=filename='captions.ass':fontsdir='${escapedFonts}',format=yuv420p[vout]`;
+  } else {
+    vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,format=yuv420p[vout]`;
+  }
 
   // Episode audio concatenation
   const aconcatInputs = cuts.map((_, i) => `[a${i}]`).join('');
@@ -88,7 +104,7 @@ export function buildAnimeFilterGraph(plan: AnimeEditPlan, hasMusic = true): str
 }
 
 /**
- * Renders a full 1080x1920 vertical AMV clip using NVENC GPU acceleration
+ * Renders an AMV clip using NVENC GPU acceleration
  * with graceful CPU fallbacks and technical validation.
  */
 export async function renderAnimeAMV(
@@ -102,10 +118,17 @@ export async function renderAnimeAMV(
   hardware: { nvenc: boolean; cpuThreads: number },
   signal: AbortSignal,
   report: (progress: number) => void,
-  fallback?: (message: string) => void
+  fallback?: (message: string) => void,
+  audioIndex = 0
 ): Promise<void> {
   const hasMusic = !!sourceMusic && (await fs.stat(sourceMusic).catch(() => null)) !== null;
-  const graph = buildAnimeFilterGraph(plan, hasMusic);
+
+  if (plan.captions) {
+    const subtitle = path.join(workDir, 'captions.ass');
+    await fs.writeFile(subtitle, plan.captions.replaceAll('Noto Sans JP', 'Noto Sans CJK JP'));
+  }
+
+  const graph = buildAnimeFilterGraph(plan, hasMusic, runtime, audioIndex);
 
   const graphScript = path.join(workDir, `render_amv_${plan.conceptId}.ffscript`);
   await fs.writeFile(graphScript, graph);
@@ -193,16 +216,18 @@ export async function renderAnimeAMV(
   }
 
   // 4. Strict Quality Control Validation
+  const expectedW = plan.aspectRatio === '16:9' ? 1920 : 1080;
+  const expectedH = plan.aspectRatio === '16:9' ? 1080 : (plan.aspectRatio === '1:1' ? 1080 : 1920);
   const metadata = await probe(runtime, outputMp4, signal, 1.0);
   if (
-    metadata.width !== 1080 ||
-    metadata.height !== 1920 ||
+    metadata.width !== expectedW ||
+    metadata.height !== expectedH ||
     metadata.videoCodec !== 'h264' ||
     metadata.audioCodec !== 'aac' ||
     metadata.duration < 2.0
   ) {
     throw new Error(
-      `Rendered AMV failed quality control: ${metadata.width}x${metadata.height}, ${metadata.videoCodec}, ${metadata.duration}s`
+      `Rendered AMV failed quality control: ${metadata.width}x${metadata.height}, ${metadata.videoCodec}, ${metadata.duration}s (expected ${expectedW}x${expectedH})`
     );
   }
 }

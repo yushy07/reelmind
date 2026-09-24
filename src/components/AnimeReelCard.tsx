@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, LoaderCircle, CheckCircle2, Music, Volume2 } from 'lucide-react';
+import { Sparkles, LoaderCircle, CheckCircle2, Music, Volume2, FolderDown } from 'lucide-react';
 import type { Job, AnimeEditStyle, AnimeRerenderOptions } from '../../shared/types';
 import { durationFormat } from '../lib/format';
 
@@ -9,12 +9,14 @@ interface AnimeReelCardProps {
   index: number;
   busy: boolean;
   onRerender: (conceptId: number, options: AnimeRerenderOptions) => Promise<void>;
+  onSave?: (reelId: string) => void;
 }
 
-export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelCardProps) {
+export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: AnimeReelCardProps) {
   const conceptId = parseInt(reel.id, 10);
   const concept = job.animeAnalysis?.concepts?.find((c) => c.id === conceptId);
   const [style, setStyle] = useState<AnimeEditStyle>(concept?.style || 'hard_beat_drop');
+  const [aspect, setAspect] = useState<'9:16' | '1:1' | '16:9'>(job.input.outputAspect || '9:16');
   const [sourceAudio, setSourceAudio] = useState(40);
   const [music, setMusic] = useState(100);
   const [localBusy, setLocalBusy] = useState(false);
@@ -27,6 +29,7 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelC
         style,
         sourceAudioMix: sourceAudio / 100,
         musicMix: music / 100,
+        aspectRatio: aspect,
       });
     } finally {
       setLocalBusy(false);
@@ -84,6 +87,39 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelC
                   {name}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="anime-control-group">
+            <div className="anime-control-header">
+              <span>Aspect Ratio</span>
+              <strong>{aspect === '9:16' ? '9:16 Vertical' : aspect === '1:1' ? '1:1 Square' : '16:9 Cinema'}</strong>
+            </div>
+            <div className="style-pills-row">
+              <button
+                type="button"
+                className={`style-pill-btn ${aspect === '9:16' ? 'active' : ''}`}
+                onClick={() => setAspect('9:16')}
+                disabled={isWorking}
+              >
+                📱 9:16
+              </button>
+              <button
+                type="button"
+                className={`style-pill-btn ${aspect === '1:1' ? 'active' : ''}`}
+                onClick={() => setAspect('1:1')}
+                disabled={isWorking}
+              >
+                ⏹ 1:1
+              </button>
+              <button
+                type="button"
+                className={`style-pill-btn ${aspect === '16:9' ? 'active' : ''}`}
+                onClick={() => setAspect('16:9')}
+                disabled={isWorking}
+              >
+                🖥 16:9
+              </button>
             </div>
           </div>
 
@@ -160,11 +196,21 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender }: AnimeReelC
               <>
                 <CheckCircle2 size={13} /> Saved to folder
               </>
+            ) : onSave ? (
+              <button
+                type="button"
+                className="btn-save-single"
+                onClick={() => onSave(reel.id)}
+                disabled={isWorking}
+                title="Save this single AMV outside REELMIND"
+              >
+                <FolderDown size={13} /> Save This AMV
+              </button>
             ) : (
               'Ready to save'
             )}
           </small>
-          <span>9:16 Vertical HD</span>
+          <span>{aspect} Preset</span>
         </div>
       </div>
     </article>

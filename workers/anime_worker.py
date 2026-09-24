@@ -28,8 +28,9 @@ def detect_scenes(args):
     emit(progress=0.05, message='Detecting anime scene and shot boundaries')
     video = open_video(args.input)
     scene_manager = SceneManager()
+    scene_manager.auto_downscale = True
     # ContentDetector threshold: 27 is standard for anime cuts without over-triggering on fast action
-    scene_manager.add_detector(ContentDetector(threshold=27.0, min_scene_len=15))
+    scene_manager.add_detector(ContentDetector(threshold=27.0, min_scene_len=12))
 
     total_frames = video.duration.frame_num if video.duration else 0
 
@@ -39,7 +40,7 @@ def detect_scenes(args):
             pct = min(0.95, idx / total_frames)
             emit(progress=pct, message=f'Scanning frames for cuts · {int(pct * 100)}%')
 
-    scene_manager.detect_scenes(video=video, callback=progress_callback)
+    scene_manager.detect_scenes(video=video, callback=progress_callback, frame_skip=1)
     scenes = scene_manager.get_scene_list()
 
     shots = []

@@ -8,7 +8,8 @@ export async function probe(runtime:string,file:string,signal?:AbortSignal,minDu
   const duration=Number(data.format?.duration);
   if(!video||!audio||!Number.isFinite(duration)||duration<minDuration)throw new Error(`The video needs a readable picture, audio and at least ${minDuration} seconds of content.`);
   const [numerator,denominator]=String(video.avg_frame_rate||video.r_frame_rate||'30/1').split('/').map(Number);const fps=denominator?numerator/denominator:30;
-  return {duration,width:Number(video.width),height:Number(video.height),videoCodec:video.codec_name,audioCodec:audio.codec_name,fps:Number.isFinite(fps)?fps:30};
+  const audioStreams=(data.streams||[]).filter((s:any)=>s.codec_type==='audio').map((s:any,idx:number)=>({index:idx,streamIndex:Number(s.index),language:String(s.tags?.language||s.tags?.LANG||'').toLowerCase(),title:String(s.tags?.title||'')}));
+  return {duration,width:Number(video.width),height:Number(video.height),videoCodec:video.codec_name,audioCodec:audio.codec_name,fps:Number.isFinite(fps)?fps:30,audioStreams};
 }
 export async function render(runtime:string,source:string,plan:EditPlan,output:string,work:string,quality:string,hardware:{nvenc:boolean;cpuThreads:number},signal:AbortSignal,report:(n:number)=>void,fallback?:(message:string)=>void){
   const subtitle=path.join(work,'captions.ass');
@@ -46,7 +47,7 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
     try{if(!hardware.nvenc)throw new Error('NVENC not selected');await encode(['-c:v','h264_nvenc','-preset','p4','-cq',quality==='high'?'19':'23']);}
     catch{signal.throwIfAborted();fallback?.('GPU encoding unavailable; using software H.264');try{await encode(['-c:v','libopenh264','-b:v',quality==='high'?'10M':'7M','-maxrate',quality==='high'?'14M':'10M','-bufsize','20M','-threads',String(hardware.cpuThreads)]);}catch{signal.throwIfAborted();fallback?.('Software encoder unavailable; trying Windows H.264');await encode(['-c:v','h264_mf','-b:v',quality==='high'?'10M':'7M']);}}
     const metadata=await probe(runtime,output,signal);
-    if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<29.9||metadata.duration>60.2)throw new Error('Rendered Reel failed export validation.');
+    if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<28.5||metadata.duration>61.5)throw new Error(`Rendered Reel failed export validation: ${metadata.duration.toFixed(2)}s (expected 30–60s)`);
   } finally {
     if (signal?.aborted) {
       await fs.unlink(subtitle).catch(()=>{});

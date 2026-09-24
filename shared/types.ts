@@ -122,6 +122,8 @@ export interface AnimeEditPlan {
   fps: 30;
   bpm: number;
   renderQuality?: 'balanced' | 'high';
+  aspectRatio?: '9:16' | '16:9' | '1:1';
+  captions?: string;
   cuts: AnimeShotCut[];
   audio: {
     sourceAudioMix: number;
@@ -134,6 +136,7 @@ export interface AnimeRerenderOptions {
   style?: AnimeEditStyle;
   sourceAudioMix?: number;
   musicMix?: number;
+  aspectRatio?: '9:16' | '16:9' | '1:1';
 }
 
 export interface AnimeEpisodeAnalysis {
@@ -163,7 +166,7 @@ export interface Job {
   studio?:Studio;
   name?:string;
   title:string;
-  input:{kind:'local'|'url';value:string;name?:string;musicPath?:string;language?:AnimeLanguage};
+  input:{kind:'local'|'url';value:string;name?:string;musicPath?:string;language?:AnimeLanguage;outputAspect?:'9:16'|'16:9'|'1:1'};
   stage:Stage;
   checkpoint:Stage;
   progress:number;
@@ -205,7 +208,7 @@ export interface API {
   createAnime?(input:AnimeCreateInput):Promise<string>;
   rerenderAnime?(jobId:string,conceptId:number,options?:AnimeRerenderOptions):Promise<void>;
   action(id:string,action:'pause'|'resume'|'delete'):Promise<void>;
-  save(id:string):Promise<string|null>;
+  save(id:string,reelId?:string):Promise<string|null>;
   settings(settings:Settings,keys:Partial<Record<Provider,string>>):Promise<void>;
   setup():Promise<void>;
   turbo(action:'download'|'cancel'):Promise<void>;

@@ -103,15 +103,23 @@ export class Service {
     this.changed();
   }
 
+  private keyCache = new Map<Provider, string>();
+
   async key(p: Provider): Promise<string> {
-    return run(
+    if (this.keyCache.has(p)) {
+      return this.keyCache.get(p)!;
+    }
+    const val = await run(
       'powershell.exe',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(this.workers, 'credentials.ps1')],
       { input: JSON.stringify({ action: 'get', provider: p }) }
     );
+    this.keyCache.set(p, val);
+    return val;
   }
 
   async setKey(p: Provider, key: string): Promise<void> {
+    this.keyCache.set(p, key);
     await run(
       'powershell.exe',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(this.workers, 'credentials.ps1')],
@@ -220,6 +228,7 @@ export class Service {
         musicPath: request.musicPath,
         language: request.language || 'ja',
         name: request.name?.trim() || undefined,
+        outputAspect: request.outputAspect || '9:16',
       },
       stage: 'queued',
       checkpoint: 'queued',
@@ -250,14 +259,22 @@ export class Service {
       else if (job.stage === 'queued') this.update(job, { stage: 'paused', cleanupAt: this.store.now() + DAY, message: 'Paused · recover within 24 hours' });
       return;
     }
-    if (this.active.has(id)) throw new Error('Wait for processing to stop.');
     if (action === 'delete') {
+      if (this.active.has(id)) {
+        const controller = this.active.get(id)!;
+        controller.abort();
+        let waits = 0;
+        while (this.active.has(id) && waits++ < 30) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
       await removeWorkspace(path.join(this.root, 'work'), this.work(id));
       await removeWorkspace(path.join(this.root, 'outputs'), this.out(id));
       this.store.remove(id);
       this.changed();
       return;
     }
+    if (this.active.has(id)) throw new Error('Wait for processing to stop.');
     if (job.workingDeleted || job.stage === 'expired') throw new Error('Recovery expired. Import your video again.');
     if (!['paused', 'failed'].includes(job.stage)) throw new Error('This project cannot be resumed.');
     if (job.cleanupAt && job.cleanupAt <= this.store.now()) {
@@ -281,14 +298,16 @@ export class Service {
     }
   }
 
-  async save(id: string, dir: string, blocked: string[]): Promise<string> {
+  async save(id: string, dir: string, blocked: string[], reelId?: string): Promise<string> {
     const job = this.store.get(id);
     if (!job || !['completed', 'expired'].includes(job.stage)) throw new Error('Finish rendering before saving.');
     if (this.saving.has(id)) throw new Error('Already saving.');
     this.saving.add(id);
     try {
       const dest = await externalDirectory(dir, blocked);
-      for (const reel of job.outputs) {
+      const targets = reelId ? job.outputs.filter((r) => r.id === reelId) : job.outputs;
+      if (!targets.length) throw new Error('Reel not found.');
+      for (const reel of targets) {
         if (reel.savedPath) continue;
         let target = path.join(dest, path.basename(reel.file));
         let suffix = 1;
@@ -310,7 +329,8 @@ export class Service {
         this.update(job, { outputs: job.outputs });
         await fs.unlink(reel.file).catch(() => {});
       }
-      this.update(job, { message: 'All Reels saved outside REELMIND' });
+      const allSaved = job.outputs.every((r) => !!r.savedPath);
+      this.update(job, { message: allSaved ? 'All Reels saved outside REELMIND' : 'Selected Reel saved' });
       return dest;
     } finally {
       this.saving.delete(id);

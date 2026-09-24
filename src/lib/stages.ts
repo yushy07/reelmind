@@ -12,6 +12,7 @@ export const stageLabels: Record<string, string> = {
   transcribing: 'Transcribing',
   framing: 'Finding speakers',
   analyzing: 'Finding moments',
+  candidates: 'Ranking moments',
   rendering: 'Rendering',
   completed: 'Ready',
   paused: 'Paused',

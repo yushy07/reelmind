@@ -902,6 +902,63 @@ test('buildAnimeFilterGraph produces valid FFmpeg filter graph string for vertic
   assert.ok(graphNoMusic.includes('[aepisode]loudnorm=I=-14'));
 });
 
+test('buildAnimeFilterGraph supports 16:9 Cinema and 1:1 Square aspect ratios and subtitle burning', () => {
+  const baseCut = {
+    shotId: 1,
+    sourceStart: 1,
+    sourceEnd: 5,
+    timelineStart: 0,
+    timelineEnd: 4,
+    duration: 4,
+    zoom: 1.05,
+    center: 0.5,
+    endCenter: 0.5
+  };
+
+  const plan169: AnimeEditPlan = {
+    version: 1,
+    conceptId: 1,
+    title: 'Test 16:9',
+    style: 'hard_beat_drop',
+    category: 'action',
+    duration: 4,
+    fps: 30,
+    bpm: 130,
+    aspectRatio: '16:9',
+    cuts: [baseCut],
+    audio: { sourceAudioMix: 0.5, musicMix: 0.8, musicOffset: 0 }
+  };
+
+  const graph169 = buildAnimeFilterGraph(plan169, false);
+  assert.ok(graph169.includes('crop=1920:1080:x='));
+
+  const plan11: AnimeEditPlan = {
+    version: 1,
+    conceptId: 2,
+    title: 'Test 1:1',
+    style: 'hard_beat_drop',
+    category: 'action',
+    duration: 4,
+    fps: 30,
+    bpm: 130,
+    aspectRatio: '1:1',
+    cuts: [baseCut],
+    audio: { sourceAudioMix: 0.5, musicMix: 0.8, musicOffset: 0 }
+  };
+
+  const graph11 = buildAnimeFilterGraph(plan11, false);
+  assert.ok(graph11.includes('crop=1080:1080:x='));
+
+  // With captions and audio stream selector
+  const planWithCaps: AnimeEditPlan = {
+    ...plan169,
+    captions: '[Script Info]\nTitle: Test\n'
+  };
+  const graphCaps = buildAnimeFilterGraph(planWithCaps, false, 'C:/fake/runtime', 1);
+  assert.ok(graphCaps.includes('[0:a:1]atrim='));
+  assert.ok(graphCaps.includes("ass=filename='captions.ass'"));
+});
+
 test('renderAnimeAMV renders valid vertical 1080x1920 MP4 on test media', async () => {
   const root = path.join(__dirname, '..');
   const runtime = path.join(root, 'runtime');

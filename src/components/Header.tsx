@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronRight, Cpu, Sparkles, Mic, Layers } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronRight, Cpu, Sparkles, Mic, Layers, Moon, Sun } from 'lucide-react';
 
 interface HeaderProps {
   page: 'home' | 'new' | 'library' | 'settings';
@@ -10,6 +10,24 @@ interface HeaderProps {
 
 export function Header({ page, studio, jobName, hasActiveJob }: HeaderProps) {
   const isAnime = studio === 'anime';
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('reelmind-theme') as 'light' | 'dark') ||
+      (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('theme-dark');
+    } else {
+      document.documentElement.classList.remove('theme-dark');
+    }
+    localStorage.setItem('reelmind-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   return (
     <header>
@@ -42,6 +60,15 @@ export function Header({ page, studio, jobName, hasActiveJob }: HeaderProps) {
       </div>
 
       <div className="header-actions">
+        <button
+          type="button"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to Canvas Light Room' : 'Switch to Cinema Dark Room'}
+          aria-label="Toggle studio theme"
+        >
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
         <span className={`header-status ${hasActiveJob ? 'working' : ''}`}>
           <span className="status-radar">
             <span className="radar-ping" />

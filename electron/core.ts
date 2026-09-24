@@ -79,7 +79,7 @@ export function planEdit(c:Candidate,t:Transcript,frames:Frame[],sourceFps=30):E
   let start=c.start;
   // Only remove very long dead air; keep emotional pauses and enforce 30 seconds.
   let remaining=c.end-c.start;
-  for(let i=1;i<words.length;i++){const gap=words[i].start-words[i-1].end;if(gap>2.4&&remaining-(gap-.6)>=30){cuts.push({start,end:words[i-1].end+.3});start=words[i].start-.3;remaining-=gap-.6;}}
+  for(let i=1;i<words.length;i++){const gap=words[i].start-words[i-1].end;if(gap>2.4&&remaining-(gap-.6)>=30.8){cuts.push({start,end:words[i-1].end+.3});start=words[i].start-.3;remaining-=gap-.6;}}
   cuts.push({start,end:c.end});
   const remap=(n:number)=>{let offset=0;for(const cut of cuts){if(n<=cut.end)return offset+Math.max(0,n-cut.start);offset+=cut.end-cut.start;}return offset;};
   const outputWords=words.map(w=>({...w,start:remap(w.start),end:remap(w.end)}));

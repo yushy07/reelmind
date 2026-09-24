@@ -86,10 +86,29 @@ header {
   gap: 8px;
   white-space: nowrap;
 }
-.header-status.working {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--status-working-ink);
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--lab-rule);
+  color: var(--lab-ink-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.theme-toggle-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--lab-ink);
+  border-color: var(--accent);
 }
 
 .status-radar { position: relative; display:flex; align-items:center; justify-content:center; width: 9px; height: 9px; }
@@ -634,9 +653,33 @@ progress::-webkit-progress-value { background: var(--accent); border-radius:999p
   display:flex; align-items:center; justify-content:center; gap:6px; background: var(--lab-ink);
   border:1px solid var(--lab-ink); border-radius:10px; color:#fff; font-size:12px; font-weight:700; padding:10px 12px; cursor:pointer; transition: all var(--transition-fast);
 }
-.rerender-btn:hover:not(:disabled) { background: #292524; transform: translateY(-1px); }
 .anime-output-footer { display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:10px; border-top:1px solid var(--lab-rule); font-size:11px; color: var(--lab-ink-muted); font-family: var(--font-mono); }
 .anime-output-footer small { display:flex; align-items:center; gap:5px; color: var(--status-ready); font-weight:700; }
+
+.btn-save-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--lab-rule-strong);
+  color: var(--accent);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.btn-save-single:hover:not(:disabled) {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.btn-save-single:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* Library controls */
 .library-controls input { background:#ffffff; }

@@ -40,21 +40,35 @@ export class PodcastPipeline {
           await fs.rename(source + '.part', source);
         }
       } else if (!await exists(source)) {
-        const downloaderOptions = { signal, env: { ELECTRON_RUN_AS_NODE: '1' } };
         const downloaderArgs = [
           '--ignore-config',
           '--no-playlist',
           '--no-warnings',
+          '--socket-timeout',
+          '30',
+          '--retries',
+          '3',
+          '--fragment-retries',
+          '3',
           '--js-runtimes',
           `node:${process.execPath}`,
           '--cache-dir',
           path.join(work, 'download-cache'),
         ];
-        const raw = await run(
-          path.join(this.ctx.runtime, 'yt-dlp.exe'),
-          [...downloaderArgs, '--skip-download', '--dump-single-json', '--', job.input.value],
-          downloaderOptions
-        );
+        const probeSignal = AbortSignal.any([signal, AbortSignal.timeout(45_000)]);
+        let raw: string;
+        try {
+          raw = await run(
+            path.join(this.ctx.runtime, 'yt-dlp.exe'),
+            [...downloaderArgs, '--skip-download', '--dump-single-json', '--', job.input.value],
+            { signal: probeSignal, env: { ELECTRON_RUN_AS_NODE: '1' } }
+          );
+        } catch (err: any) {
+          if (probeSignal.aborted && !signal.aborted) {
+            throw new Error('Video link verification timed out after 45s. Check network access or ensure the URL is publicly available.');
+          }
+          throw err;
+        }
         const meta = JSON.parse(raw);
         if (
           meta.is_live ||
@@ -73,6 +87,7 @@ export class PodcastPipeline {
           path.join(this.ctx.runtime, 'yt-dlp.exe'),
           [
             ...downloaderArgs,
+            '--newline',
             '--max-filesize',
             '20G',
             '--ffmpeg-location',
@@ -88,7 +103,22 @@ export class PodcastPipeline {
             '--',
             job.input.value,
           ],
-          downloaderOptions
+          {
+            signal,
+            env: { ELECTRON_RUN_AS_NODE: '1' },
+            progress: (line) => {
+              const match = line.match(/\[download\]\s+([\d.]+)%/);
+              if (match) {
+                const pct = parseFloat(match[1]);
+                if (Number.isFinite(pct)) {
+                  this.ctx.update(job, {
+                    progress: 2 + (pct / 100) * 8,
+                    message: `Downloading linked video · ${pct.toFixed(0)}%`,
+                  });
+                }
+              }
+            },
+          }
         );
       }
       const media = await probe(this.ctx.runtime, source, signal);
@@ -191,6 +221,7 @@ export class PodcastPipeline {
       );
       this.ctx.update(job, { transcriptTiming: transcript.timingSource || (job.transcriptSource === 'pasted' ? 'provided' : 'whisper') });
       phase('framing', 43, 'Matching voices and finding faces');
+      const speakersFile = path.join(work, 'speakers.json');
       const frames = await this.ctx.checkpoints.checkpoint<Frame[]>(
         path.join(work, 'frames.json'),
         (d) => Array.isArray(d),
@@ -206,6 +237,8 @@ export class PodcastPipeline {
               audio,
               '--transcript',
               transcriptFile,
+              '--speakers-output',
+              speakersFile,
               '--output',
               path.join(work, 'frames.json'),
               '--models',
@@ -225,8 +258,14 @@ export class PodcastPipeline {
         },
         this.ctx.checkpoints.fingerprint(transcript.segments.map(({ speaker, ...segment }) => segment))
       );
-      await this.ctx.checkpoints.seal(transcriptFile);
-      transcript = JSON.parse(await fs.readFile(transcriptFile, 'utf8'));
+      if (await exists(speakersFile)) {
+        try {
+          const speakers: string[] = JSON.parse(await fs.readFile(speakersFile, 'utf8'));
+          transcript.segments.forEach((seg, i) => {
+            if (speakers[i]) seg.speaker = speakers[i];
+          });
+        } catch {}
+      }
       phase('analyzing', 54, 'Finding moments across the entire video');
       const candidates = await this.ctx.checkpoints.checkpoint<Candidate[]>(
         path.join(work, 'candidates.json'),

@@ -60,7 +60,11 @@ def frame_video(args):
             centroids[index] = centroids[index]*.85 + vec*.15
             centroids[index] /= np.linalg.norm(centroids[index])
         s['speaker'] = f'Speaker {index+1}'
-    save(args.transcript, transcript)
+    speakers_output = getattr(args, 'speakers_output', None)
+    if speakers_output:
+        save(speakers_output, [s.get('speaker', 'Speaker 1') for s in transcript['segments']])
+    else:
+        save(args.transcript, transcript)
     cap = cv2.VideoCapture(args.input)
     try:
         detector = cv2.FaceDetectorYN.create(str(Path(args.models)/'face.onnx'), '', (640, 360), .75, .3, 5000)
@@ -133,7 +137,7 @@ def setup(args):
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('command',choices=['transcribe','frame','setup'])
-    for key in ['input','output','models','transcript','audio','model-path']:
+    for key in ['input','output','models','transcript','audio','model-path','speakers-output']:
         parser.add_argument('--'+key)
     parser.add_argument('--gpu', action='store_true')
     args=parser.parse_args()

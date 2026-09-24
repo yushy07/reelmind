@@ -22,6 +22,7 @@ export function NewProjectAnime({
   const [episode, setEpisode] = useState('');
   const [music, setMusic] = useState('');
   const [lang, setLang] = useState<'ja' | 'en'>('ja');
+  const [aspect, setAspect] = useState<'9:16' | '1:1' | '16:9'>('9:16');
   const [name, setName] = useState('');
 
   const episodeName = episode ? episode.split(/[\\/]/).pop() : '';
@@ -123,6 +124,36 @@ export function NewProjectAnime({
           </button>
         </div>
 
+        {/* Step 4: Output Aspect Ratio */}
+        <div className="form-step">
+          <span className="badge-anime">04</span>
+          <strong>Output Aspect Ratio</strong>
+          <small>Select Format</small>
+        </div>
+        <div className="language-selector">
+          <button
+            type="button"
+            className={`language-btn ${aspect === '9:16' ? 'active' : ''}`}
+            onClick={() => setAspect('9:16')}
+          >
+            📱 9:16 Vertical (Reels / TikTok)
+          </button>
+          <button
+            type="button"
+            className={`language-btn ${aspect === '1:1' ? 'active' : ''}`}
+            onClick={() => setAspect('1:1')}
+          >
+            ⏹ 1:1 Square (Feed)
+          </button>
+          <button
+            type="button"
+            className={`language-btn ${aspect === '16:9' ? 'active' : ''}`}
+            onClick={() => setAspect('16:9')}
+          >
+            🖥 16:9 Cinema (YouTube)
+          </button>
+        </div>
+
         <label className="project-name-field">
           PROJECT TITLE <span>OPTIONAL</span>
           <input
@@ -146,7 +177,9 @@ export function NewProjectAnime({
             <Languages size={15} /> Whisper ({lang.toUpperCase()})
           </span>
           <span>
-            <span className="aspect-badge">9:16 Vertical Preset</span>
+            <span className="aspect-badge">
+              {aspect === '9:16' ? '9:16 Vertical' : aspect === '1:1' ? '1:1 Square' : '16:9 Cinema'}
+            </span>
           </span>
         </div>
 
@@ -165,7 +198,7 @@ export function NewProjectAnime({
                 musicPath: music,
                 language: lang,
                 name: name.trim() || undefined,
-                outputAspect: '9:16',
+                outputAspect: aspect,
               })
             }
           >

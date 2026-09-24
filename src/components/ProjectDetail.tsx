@@ -22,7 +22,7 @@ interface ProjectDetailProps {
   job: Job;
   busy: boolean;
   onAction: (action: 'pause' | 'resume' | 'delete') => void;
-  onSave: () => void;
+  onSave: (reelId?: string) => void;
   onRerender: (conceptId: number, options: AnimeRerenderOptions) => Promise<void>;
   back: () => void;
 }
@@ -276,7 +276,7 @@ export function ProjectDetail({
               <button
                 className="primary"
                 disabled={busy || savedCount === job.outputs.length}
-                onClick={onSave}
+                onClick={() => onSave()}
               >
                 {busy ? <LoaderCircle className="spin" size={17} /> : <FolderDown size={17} />}
                 {savedCount === job.outputs.length ? 'All Reels Saved' : 'Save Reels to Folder'}
@@ -294,6 +294,7 @@ export function ProjectDetail({
                   index={i}
                   busy={busy}
                   onRerender={onRerender}
+                  onSave={onSave}
                 />
               ) : (
                 <article className="output-card" key={reel.id}>
@@ -315,7 +316,15 @@ export function ProjectDetail({
                           <CheckCircle2 size={13} /> Saved to folder
                         </>
                       ) : (
-                        'Ready to save'
+                        <button
+                          type="button"
+                          className="btn-save-single"
+                          onClick={() => onSave(reel.id)}
+                          disabled={busy}
+                          title="Save this single Reel outside REELMIND"
+                        >
+                          <FolderDown size={13} /> Save This Reel
+                        </button>
                       )}
                     </small>
                   </div>
@@ -346,7 +355,8 @@ export function ProjectDetail({
         disabled={busy}
         onClick={() => onAction('delete')}
       >
-        <Trash2 size={15} /> Delete Project
+        {busy ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}
+        {busy ? 'Processing…' : 'Delete Project'}
       </button>
     </div>
   );

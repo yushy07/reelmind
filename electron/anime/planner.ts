@@ -8,6 +8,56 @@ import type {
   AnimeEditStyle
 } from '../../shared/types';
 
+function assTime(n: number): string {
+  const h = Math.floor(n / 3600);
+  const m = Math.floor(n / 60) % 60;
+  const s = Math.floor(n) % 60;
+  const c = Math.floor(n * 100) % 100;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
+}
+
+function escapeAss(s: string): string {
+  return s.replace(/[{}\\]/g, '').replace(/\r?\n/g, ' ');
+}
+
+/**
+ * Creates styled ASS captions for anime dialogue moments.
+ */
+export function makeAnimeCaptions(
+  dialogueText: string,
+  start: number,
+  end: number,
+  aspectRatio: '9:16' | '16:9' | '1:1' = '9:16'
+): string {
+  const isCinema = aspectRatio === '16:9';
+  const isSquare = aspectRatio === '1:1';
+  const resX = isCinema ? 1920 : 1080;
+  const resY = isCinema ? 1080 : (isSquare ? 1080 : 1920);
+  const marginV = isCinema ? 140 : (isSquare ? 160 : 380);
+  const fontSize = isCinema ? 54 : (isSquare ? 52 : 62);
+
+  const isJapanese = /[\u3040-\u30ff\u3400-\u9fff]/.test(dialogueText);
+  const fontName = isJapanese ? 'Noto Sans CJK JP' : 'Noto Sans';
+
+  const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${resX}
+PlayResY: ${resY}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${fontName},${fontSize},&H00FFFFFF,&H00FFFFFF,&H00181514,&H80000000,-1,0,0,0,100,100,0,0,1,4.5,1.5,2,80,80,${marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+  const clean = escapeAss(dialogueText.trim());
+  const event = `Dialogue: 0,${assTime(start)},${assTime(Math.max(start + 0.3, end))},Default,,0,0,0,,{\\fad(120,120)}${clean}\n`;
+  return header + event;
+}
+
 /**
  * Finds or synthesizes beat timestamps from the music map.
  */
@@ -35,13 +85,14 @@ function getMusicBeats(musicMap: MusicMap, startSec: number, duration: number): 
  * Plans an AMV edit for a single discovered AnimeEditConcept.
  * Aligns the primary impact frame T_impact to a musical beat drop,
  * structures build -> impact -> payoff shot sequences, and
- * generates smart 9:16 vertical reframe coordinates and camera dynamics.
+ * generates smart vertical/square/cinematic reframe coordinates and camera dynamics.
  */
 export function planAnimeEdit(
   concept: AnimeEditConcept,
   musicMap: MusicMap,
   allShots: AnimeShot[] = [],
-  fps: 30 = 30
+  fps: 30 = 30,
+  aspectRatio: '9:16' | '16:9' | '1:1' = '9:16'
 ): AnimeEditPlan {
   const bpm = musicMap.bpm || 135;
   const beatDuration = 60.0 / bpm;
@@ -208,6 +259,17 @@ export function planAnimeEdit(
     musicMix = 0.95;
   }
 
+  // Subtitle generation for dialogue moments
+  let captions: string | undefined;
+  if (concept.hasDialogue && concept.dialogueText) {
+    const dialogueCut = cuts.find((c) => c.shotId === concept.shotId) || cuts[0];
+    if (dialogueCut) {
+      const cStart = dialogueCut.timelineStart;
+      const cEnd = Math.min(dialogueCut.timelineEnd, cStart + 4.0);
+      captions = makeAnimeCaptions(concept.dialogueText, cStart, cEnd, aspectRatio);
+    }
+  }
+
   return {
     version: 1,
     conceptId: concept.id,
@@ -217,6 +279,8 @@ export function planAnimeEdit(
     duration: Math.round(currentTimeline * 100) / 100,
     fps,
     bpm,
+    aspectRatio,
+    captions,
     cuts,
     audio: {
       sourceAudioMix,

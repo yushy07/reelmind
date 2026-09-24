@@ -41,3 +41,8 @@ test('checkpoint is regenerated when upstream dependency changes',async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-dependency-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});let count=0;
  try{const file=path.join(root,'stage.json'),make=async()=>({value:++count});await service.checkpoint(file,()=>true,make,'a');await service.checkpoint(file,()=>true,make,'a');assert.equal(count,1);await service.checkpoint(file,()=>true,make,'b');assert.equal(count,2);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
 });
+test('actively running job can be cleanly deleted without throwing error',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'reelmind-del-'));const store=new Store(path.join(root,'db.sqlite'));const service=new Service(root,'unused','unused',store,()=>{},()=>{});
+ try{const id=randomUUID();const job:Job={id,title:'Active Job',input:{kind:'local',value:'video.mp4'},stage:'transcribing',checkpoint:'transcribing',progress:25,message:'Processing',createdAt:Date.now(),updatedAt:Date.now(),outputs:[],provider:'Local'};store.put(job);await fs.mkdir(service.work(id),{recursive:true});await fs.mkdir(service.out(id),{recursive:true});const controller=new AbortController();service.queue.register(id,controller);assert.equal(service.active.has(id),true);controller.signal.addEventListener('abort',()=>{setTimeout(()=>service.queue.release(id),50);});await service.action(id,'delete');assert.equal(controller.signal.aborted,true);assert.equal(store.get(id),undefined);assert.equal(await fs.stat(service.work(id)).catch(()=>null),null);}finally{store.db.close();await fs.rm(root,{recursive:true,force:true});}
+});
+

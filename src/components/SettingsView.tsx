@@ -173,6 +173,12 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
           </div>
         ))}
 
+        {(data.keys.gemini || (keys.gemini && keys.gemini.trim().length > 0)) && !s.geminiFreeConfirmed && (
+          <div className="alert alert-banner field-spaced-sm">
+            <span>Please confirm that your Gemini project is on a free tier below. REELMIND requires this confirmation before using Gemini for moment ranking.</span>
+          </div>
+        )}
+
         <label className="check-line check-spaced">
           <input
             type="checkbox"

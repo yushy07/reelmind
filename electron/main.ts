@@ -74,11 +74,12 @@ app.whenReady().then(async()=>{
     z.object({
       style:z.enum(['hard_beat_drop','slow_burn','dialogue_pause','velocity_ramp']).optional(),
       sourceAudioMix:z.number().min(0).max(1).optional(),
-      musicMix:z.number().min(0).max(1).optional()
+      musicMix:z.number().min(0).max(1).optional(),
+      aspectRatio:z.enum(['9:16','16:9','1:1']).optional()
     }).strict().parse(options||{})
   ));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});
-  handle('save',async id=>{z.string().uuid().parse(id);const result=await dialog.showOpenDialog(window,{title:'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')]);});
+  handle('save',async(id,reelId)=>{z.string().uuid().parse(id);const parsedReelId=reelId?z.string().max(20).parse(reelId):undefined;const result=await dialog.showOpenDialog(window,{title:parsedReelId?'Save Reel outside REELMIND':'Save Reels outside REELMIND',properties:['openDirectory','createDirectory']});if(result.canceled)return null;return service.save(id,result.filePaths[0],[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')],parsedReelId);});
   handle('settings',async(settings,keys)=>{const next=settingsSchema.parse(settings);if(next.transcriptionMode==='turbo'&&!service.models.state.ready)throw new Error('Download and verify Turbo before selecting it.');const parsed=z.object({gemini:z.string().max(4096).optional(),openrouter:z.string().max(4096).optional()}).strict().parse(keys);for(const p of ['gemini','openrouter'] as const){if(parsed[p]!==undefined){await service.setKey(p,parsed[p]!);keyPresence[p]=!!parsed[p];}}store.setSettings(next);changed();});
   let lastSetupAt=0;
   handle('setup',async()=>{
