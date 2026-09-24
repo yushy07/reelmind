@@ -86,8 +86,10 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico",
-      "publisherName": "REELMIND",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "signtoolOptions": {
+        "publisherName": "Ayush Kant"
+      }
     },
     "nsis": {
       "oneClick": false,
