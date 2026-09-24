@@ -1,7 +1,9 @@
-# type: ignore
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportOperatorIssue=false
 # pyright: reportAttributeAccessIssue=false
+# pyright: reportIndexIssue=false
+# pyright: reportCallIssue=false
+# pyright: reportArgumentType=false
 """Offline MiniLM embeddings; every token participates in a bounded 128-token window."""
 import argparse
 import json
@@ -13,6 +15,7 @@ def embed(texts, model_dir):
     import numpy as np  # type: ignore
     import onnxruntime as ort  # type: ignore
     from tokenizers import Tokenizer  # type: ignore
+    np_any: Any = np
     tokenizer: Any = Tokenizer.from_file(str(Path(model_dir) / 'tokenizer.json'))
     tokenizer.enable_truncation(max_length=128, stride=0)
     options: Any = ort.SessionOptions()
@@ -26,16 +29,20 @@ def embed(texts, model_dir):
         encoded: Any = tokenizer.encode(text)
         pooled, weights = [], []
         for window in [encoded] + encoded.overflowing:
-            inputs = {'input_ids': np.array([window.ids], dtype=np.int64),
-                      'attention_mask': np.array([window.attention_mask], dtype=np.int64),
-                      'token_type_ids': np.array([window.type_ids], dtype=np.int64)}
+            attn_mask: Any = np_any.array([window.attention_mask], dtype=np_any.int64)
+            inputs: dict[str, Any] = {
+                'input_ids': np_any.array([window.ids], dtype=np_any.int64),
+                'attention_mask': attn_mask,
+                'token_type_ids': np_any.array([window.type_ids], dtype=np_any.int64)
+            }
             hidden: Any = session.run(None, {k: v for k, v in inputs.items() if k in names})[0]
-            mask = inputs['attention_mask'][..., None]
-            pooled.append((hidden * mask).sum(axis=1)[0] / max(1, mask.sum()))
+            mask: Any = np_any.expand_dims(attn_mask, -1)
+            mask_sum = float(np_any.sum(mask))
+            pooled.append((hidden * mask).sum(axis=1)[0] / max(1.0, mask_sum))
             weights.append(max(1, sum(window.attention_mask) - sum(window.special_tokens_mask)))
-        vector = np.average(pooled, axis=0, weights=weights)
-        norm = np.linalg.norm(vector)
-        if vector.shape != (384,) or not np.isfinite(vector).all() or norm < 1e-8:
+        vector: Any = np_any.average(pooled, axis=0, weights=weights)
+        norm: float = float(np_any.linalg.norm(vector))
+        if vector.shape != (384,) or not np_any.isfinite(vector).all() or norm < 1e-8:
             raise ValueError('Invalid model embedding')
         vectors.append((vector / norm).tolist())
     return vectors

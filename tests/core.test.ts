@@ -45,6 +45,7 @@ test('selectCandidates guarantees no clip under 25 seconds is selected',()=>{
     {start:50,end:85,hook:'Good 35s story',context:'Full context',payoff:'Clear payoff',reason:'Complete story',category:'story',score:90}
   ];
   const selected=selectCandidates(pool,t);
+  assert.ok(selected.length > 0, 'Expected non-empty selected candidates');
   for(const c of selected){
     assert.ok(c.end-c.start>=25.0,`Found clip under 25s: ${c.end-c.start}`);
     assert.ok(c.end-c.start<=60.0);
@@ -63,6 +64,6 @@ test('makeCaptions produces animated ASS bursts with 9:16 safe area margin and w
   assert.ok(ass.includes('PlayResY: 1920'));
   assert.ok(ass.includes('MarginV, Encoding'));
   assert.ok(ass.includes('520,1'), 'Must include 520px vertical margin for 9:16 UI safe area');
-  assert.ok(ass.includes('&H0000F5FF&') || ass.includes('&H0000E6FF&'), 'Must include highlight color for active/emphasis words');
+  assert.ok(ass.includes('&H00FFF500&') || ass.includes('&H0000E6FF&'), 'Must include highlight color for active/emphasis words');
   assert.ok(ass.includes('SECRET'), 'Keyword emphasis should trigger uppercase pop');
 });

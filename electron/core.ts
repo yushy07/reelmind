@@ -123,7 +123,19 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
     }
   }
 
-  const finalDur = words[endIdx].end - words[startIdx].start;
+  const wordSpan = words[endIdx].end - words[startIdx].start;
+  if (wordSpan > 60.0) {
+    return null;
+  }
+
+  const maxTotalPad = Math.max(0, 60.0 - wordSpan);
+  const startPad = Math.min(0.06, words[startIdx].start, maxTotalPad);
+  const paddedStart = Math.max(0, words[startIdx].start - startPad);
+  const remainingEndPad = Math.max(0, 60.0 - (words[endIdx].end - paddedStart));
+  const endPad = Math.min(0.12, remainingEndPad);
+  const paddedEnd = Math.min(t.duration, words[endIdx].end + endPad);
+
+  const finalDur = paddedEnd - paddedStart;
   if (finalDur < 25.0 || finalDur > 60.0) {
     return null;
   }
@@ -138,8 +150,8 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
 
   return {
     ...candidate,
-    start: Math.max(0, words[startIdx].start - 0.06),
-    end: Math.min(t.duration, words[endIdx].end + 0.12),
+    start: paddedStart,
+    end: paddedEnd,
     hook: hook.slice(0, 500),
     context: context.slice(0, 1000),
     payoff: payoff.slice(0, 1000),
@@ -221,7 +233,7 @@ export function makeCaptions(words:Word[], options: CaptionOptions = {}):string 
   const shadowWidth = isCinema ? 2.0 : 2.5;
 
   const preset = options.preset || 'reelmind';
-  let activeColor = '&H0000F5FF&'; // Electric Cyan/Teal (signature ReelMind)
+  let activeColor = '&H00FFF500&'; // Electric Cyan/Teal (BGR byte order: BB=FF, GG=F5, RR=00)
   let emphasisColor = '&H0000E6FF&'; // Neon Gold/Yellow
   let primaryColor = '&H00FFFFFF&'; // Crisp Pure White
   let inactiveColor = '&H00D0D0D0&'; // Soft Silver
@@ -269,7 +281,7 @@ export function makeCaptions(words:Word[], options: CaptionOptions = {}):string 
   const lines = groups.flatMap(g => g.map((active, i) => {
     const eventStart = active.start;
     const nextWord = i + 1 < g.length ? g[i + 1] : null;
-    const rawEnd = nextWord ? Math.min(nextWord.start, active.end + 0.14) : active.end + 0.08;
+    const rawEnd = nextWord ? nextWord.start : active.end + 0.08;
     const eventEnd = Math.max(eventStart + 0.04, rawEnd);
 
     const joined = g.map(w => w.text).join('');

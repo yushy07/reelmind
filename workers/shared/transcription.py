@@ -1,4 +1,3 @@
-# type: ignore
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportArgumentType=false
 # pyright: reportCallIssue=false
@@ -70,7 +69,7 @@ def run_transcription(
                 is_english = (lang == 'en')
                 task_mode = 'transcribe' if is_english else 'translate'
 
-                orig_text = ""
+                orig_segments = []
                 if not is_english:
                     try:
                         orig_provisional, _ = model_any.transcribe(
@@ -82,7 +81,7 @@ def run_transcription(
                             task='transcribe',
                             condition_on_previous_text=False
                         )
-                        orig_text = ' '.join(p.text.strip() for p in orig_provisional if p.text).strip()
+                        orig_segments = [p for p in orig_provisional if getattr(p, 'text', None) and p.text.strip()]
                     except Exception:
                         pass
 
@@ -109,6 +108,25 @@ def run_transcription(
                         for w in part.words if w.end > w.start
                     ]
                     if words:
+                        if is_english:
+                            seg_orig_text = part.text.strip()
+                        else:
+                            matching_orig = [
+                                p.text.strip()
+                                for p in orig_segments
+                                if (p.start < part.end and p.end > part.start)
+                            ]
+                            if matching_orig:
+                                seg_orig_text = ' '.join(matching_orig).strip()
+                            elif len(orig_segments) == 1:
+                                seg_orig_text = orig_segments[0].text.strip()
+                            elif orig_segments:
+                                part_center = (part.start + part.end) / 2.0
+                                closest = min(orig_segments, key=lambda p: abs(((p.start + p.end) / 2.0) - part_center))
+                                seg_orig_text = closest.text.strip()
+                            else:
+                                seg_orig_text = ""
+
                         energy_val = float(np_any.sqrt(np_any.mean(sample ** 2))) if len(sample) else 0.0
                         result.append({
                             'start': words[0]['start'],
@@ -116,7 +134,7 @@ def run_transcription(
                             'text': part.text.strip(),
                             'language': 'en',
                             'source_language': lang,
-                            'original_text': orig_text or part.text.strip(),
+                            'original_text': seg_orig_text,
                             'language_probability': prob,
                             'energy': energy_val,
                             'words': words

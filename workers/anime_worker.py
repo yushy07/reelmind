@@ -1,4 +1,3 @@
-# type: ignore
 # pyright: reportGeneralTypeIssues=false
 # pyright: reportArgumentType=false
 # pyright: reportCallIssue=false
@@ -234,7 +233,7 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
                     frame_indices = [start_f]
                 if len(frame_indices) > 20:
                     np_any: Any = np
-                    indices_step = [int(round(float(i))) for i in np_any.linspace(0, len(frame_indices) - 1, 20)]
+                    indices_step = [round(float(i)) for i in np_any.linspace(0, len(frame_indices) - 1, 20)]
                     frame_indices = [frame_indices[i] for i in indices_step]
 
             best_face_ratio = 0.0
