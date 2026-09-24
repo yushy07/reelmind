@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 def emit(**data):
     print(json.dumps(data, ensure_ascii=False), flush=True)

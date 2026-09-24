@@ -5,9 +5,6 @@
 """Shared faster-whisper transcription engine for ReelMind.
 Used by both Podcast Studio (worker.py) and Anime Studio (anime_worker.py).
 """
-import json
-import os
-from pathlib import Path
 from typing import Callable, Optional, Dict, Any, List
 
 def run_transcription(

@@ -9,8 +9,6 @@ export interface HardwareInfo {
   display: string;
 }
 
-export type Hardware = HardwareInfo;
-
 export function defaultHardware(): HardwareInfo {
   return {
     nvenc: false,

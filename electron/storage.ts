@@ -56,3 +56,36 @@ export async function externalDirectory(dir:string,blocked:string[]){
 }
 export async function atomicJSON(file:string,value:unknown){await fs.writeFile(file+'.tmp',JSON.stringify(value));await fs.rename(file+'.tmp',file);}
 export async function cleanupTemps(files:string[]){for(const f of files) await fs.unlink(f).catch(()=>{});}
+export async function exists(file:string):Promise<boolean>{return !!(await fs.stat(file).catch(()=>null));}
+export async function cleanupWorkingTemps(work:string,output:string):Promise<void>{
+  const partials:string[]=[];
+  try{
+    for(const n of await fs.readdir(output)){
+      if(n.endsWith('.partial.mp4')||n.endsWith('.part')||n.endsWith('.part.wav')){
+        partials.push(path.join(output,n));
+      }
+    }
+  }catch{}
+  try{
+    for(const n of await fs.readdir(work)){
+      if(n.endsWith('.part')||n.endsWith('.part.wav')||n==='captions.ass'||n==='render.ffscript'){
+        partials.push(path.join(work,n));
+      }
+    }
+  }catch{}
+  try{
+    for(const e of await fs.readdir(work)){
+      if(e.startsWith('clip_')||e.startsWith('amv_')){
+        const d=path.join(work,e);
+        try{
+          for(const n of await fs.readdir(d)){
+            if(n.endsWith('.partial.mp4')||n==='captions.ass'||n==='render.ffscript'){
+              partials.push(path.join(d,n));
+            }
+          }
+        }catch{}
+      }
+    }
+  }catch{}
+  await cleanupTemps(partials);
+}

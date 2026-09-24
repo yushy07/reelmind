@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {hash,atomicJSON,removeWorkspace} from './storage';
+import { DAY } from './core';
+import type { ModelStatus } from '../shared/types';
 import manifest from '../shared/model-manifest.json';
 export const TURBO=manifest.turbo;
-export interface ModelStatus {ready:boolean;running:boolean;downloaded:number;total:number;freeBytes:number;message:string;error?:string}
 export class ModelManager {
   state:ModelStatus={ready:false,running:false,downloaded:0,total:TURBO.files.reduce((n,f)=>n+f.size,0),freeBytes:0,message:'Optional one-time download · CPU INT8'};
   controller?:AbortController;
@@ -22,7 +23,7 @@ export class ModelManager {
   async cleanup(now=Date.now()){
     if(this.state.running)return;
     const partial=await fs.stat(this.staging()).catch(()=>null);
-    if(partial&&now-partial.mtimeMs>=24*60*60*1000)await removeWorkspace(path.join(this.root,'model-downloads'),this.staging());
+    if(partial&&now-partial.mtimeMs>=DAY)await removeWorkspace(path.join(this.root,'model-downloads'),this.staging());
   }
   start(){
     if(this.state.running||this.state.ready)return;

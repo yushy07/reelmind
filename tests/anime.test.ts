@@ -6,7 +6,7 @@ import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, AnimeShotCut, Settings, Job } from '../shared/types';
+import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, Settings, Job } from '../shared/types';
 import { Service } from '../electron/service';
 import { Store } from '../electron/storage';
 import {

@@ -15,7 +15,7 @@ import json
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional
 
 # Ensure workers directory is on path to import shared modules
 sys.path.insert(0, str(Path(__file__).resolve().parent))

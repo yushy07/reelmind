@@ -210,8 +210,11 @@ export function transcriptChunks(t:Transcript) {
   if(group.length)chunks.push(group);return chunks;
 }
 
-const assTime=(n:number)=>{const h=Math.floor(n/3600),m=Math.floor(n/60)%60,s=Math.floor(n)%60,c=Math.floor(n*100)%100;return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(c).padStart(2,'0')}`;};
-const escapeAss=(s:string)=>s.replace(/[{}\\]/g,'').replace(/\r?\n/g,' ');
+export const assTime = (n: number): string => {
+  const h = Math.floor(n / 3600), m = Math.floor(n / 60) % 60, s = Math.floor(n) % 60, c = Math.floor(n * 100) % 100;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
+};
+export const escapeAss = (s: string): string => s.replace(/[{}\\]/g, '').replace(/\r?\n/g, ' ');
 
 export type CaptionPreset = 'reelmind' | 'karaoke_gold' | 'neon_punch' | 'clean_white';
 

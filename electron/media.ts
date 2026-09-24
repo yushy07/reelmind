@@ -2,6 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { run } from './process';
 import type { EditPlan } from '../shared/types';
+
+export function escapeFfmpegFilterPath(filePath: string): string {
+  return filePath.replaceAll('\\', '/').replace(':', '\\:').replaceAll("'", "\\'");
+}
 export async function probe(runtime:string,file:string,signal?:AbortSignal,minDuration=25){
   const data=JSON.parse(await run(path.join(runtime,'ffprobe.exe'),['-v','error','-show_format','-show_streams','-of','json',file],{signal}));
   const video=data.streams?.find((s:any)=>s.codec_type==='video'),audio=data.streams?.find((s:any)=>s.codec_type==='audio');
@@ -38,7 +42,7 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
       const center=`${c}+(${travel})*(0.5-0.5*cos(PI*min(t/${duration},1)))`;
       return `${trim},scale=${Math.ceil(1080*zoom/2)*2}:${Math.ceil(1920*zoom/2)*2}:force_original_aspect_ratio=increase,crop=1080:1920:x='max(0,min(iw-ow,iw*(${center})-ow/2))':y='max(0,(ih-oh)*0.3)',setsar=1,fps=${plan.fps}[o${i}]`;
     });
-    const escapedFonts=path.join(runtime,'fonts').replaceAll('\\','/').replace(':','\\:').replaceAll("'","\\'");
+    const escapedFonts = escapeFfmpegFilterPath(path.join(runtime, 'fonts'));
     const final=shots.map((_,i)=>`[o${i}]`).join('')+`concat=n=${shots.length}:v=1:a=0,ass=filename='captions.ass':fontsdir='${escapedFonts}',format=yuv420p[out];[audio]highpass=f=70,afftdn=nf=-28,loudnorm=I=-16:TP=-1.5:LRA=11[aout]`;
     const graph=[...inputCuts,join,split,...graphs,final].join(';\n');
     await fs.writeFile(ffscript,graph);

@@ -1,24 +1,11 @@
 import type {
-  AnimeCandidate,
   AnimeEditConcept,
   AnimeShot,
   MusicMap,
   AnimeEditPlan,
-  AnimeShotCut,
-  AnimeEditStyle
+  AnimeShotCut
 } from '../../shared/types';
-
-function assTime(n: number): string {
-  const h = Math.floor(n / 3600);
-  const m = Math.floor(n / 60) % 60;
-  const s = Math.floor(n) % 60;
-  const c = Math.floor(n * 100) % 100;
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
-}
-
-function escapeAss(s: string): string {
-  return s.replace(/[{}\\]/g, '').replace(/\r?\n/g, ' ');
-}
+import { assTime, escapeAss } from '../core';
 
 /**
  * Creates styled ASS captions for anime dialogue moments.

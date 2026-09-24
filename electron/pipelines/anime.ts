@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { atomicJSON, cleanupTemps, hash } from '../storage';
+import { atomicJSON, cleanupWorkingTemps, exists, hash } from '../storage';
 import { DAY } from '../core';
 import { run } from '../process';
 import { probe } from '../media';
@@ -20,10 +20,23 @@ import type {
 } from '../../shared/types';
 import type { PipelineContext } from './base';
 
-const exists = async (file: string) => !!await fs.stat(file).catch(() => null);
-
 export class AnimePipeline {
   constructor(private ctx: PipelineContext) {}
+
+  private selectAudioStreamIndex(
+    audioStreams?: Array<{ index: number; streamIndex?: number; language: string; title: string }>,
+    lang: string = 'ja'
+  ): number {
+    if (audioStreams && audioStreams.length > 1) {
+      const match = audioStreams.find((s) =>
+        lang === 'ja'
+          ? s.language.includes('ja') || s.language.includes('jpn') || s.title.toLowerCase().includes('jap')
+          : s.language.includes('en') || s.language.includes('eng') || s.title.toLowerCase().includes('eng')
+      );
+      if (match) return match.index;
+    }
+    return 0;
+  }
 
   async process(job: Job, signal: AbortSignal): Promise<void> {
     const work = this.ctx.work(job.id);
@@ -56,15 +69,7 @@ export class AnimePipeline {
       const media = await probe(this.ctx.runtime, episodeSource, signal);
       this.ctx.update(job, { duration: media.duration });
       const lang = job.input.language || 'ja';
-      let selectedAudioIdx = 0;
-      if (media.audioStreams && media.audioStreams.length > 1) {
-        const match = media.audioStreams.find((s: { index: number; streamIndex: number; language: string; title: string }) =>
-          lang === 'ja'
-            ? s.language.includes('ja') || s.language.includes('jpn') || s.title.toLowerCase().includes('jap')
-            : s.language.includes('en') || s.language.includes('eng') || s.title.toLowerCase().includes('eng')
-        );
-        if (match) selectedAudioIdx = match.index;
-      }
+      const selectedAudioIdx = this.selectAudioStreamIndex(media.audioStreams, lang);
       const audio = path.join(work, 'audio.wav');
       if (!await exists(audio)) {
         await run(
@@ -305,36 +310,7 @@ export class AnimePipeline {
       });
       this.ctx.notify(job);
     } catch (error) {
-      const partials: string[] = [];
-      try {
-        for (const n of await fs.readdir(output)) {
-          if (n.endsWith('.partial.mp4') || n.endsWith('.part') || n.endsWith('.part.wav')) {
-            partials.push(path.join(output, n));
-          }
-        }
-      } catch {}
-      try {
-        for (const n of await fs.readdir(work)) {
-          if (n.endsWith('.part') || n.endsWith('.part.wav')) {
-            partials.push(path.join(work, n));
-          }
-        }
-      } catch {}
-      try {
-        for (const e of await fs.readdir(work)) {
-          if (e.startsWith('amv_')) {
-            const d = path.join(work, e);
-            try {
-              for (const n of await fs.readdir(d)) {
-                if (n.endsWith('.partial.mp4') || n === 'captions.ass' || n === 'render.ffscript') {
-                  partials.push(path.join(d, n));
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {}
-      await cleanupTemps(partials);
+      await cleanupWorkingTemps(work, output);
       this.ctx.update(job, {
         stage: signal.aborted ? 'paused' : 'failed',
         cleanupAt: this.ctx.store.now() + DAY,
@@ -388,15 +364,7 @@ export class AnimePipeline {
 
     const media = await probe(this.ctx.runtime, episodeSource, signal);
     const lang = job.input.language || 'ja';
-    let selectedAudioIdx = 0;
-    if (media.audioStreams && media.audioStreams.length > 1) {
-      const match = media.audioStreams.find((s: { index: number; streamIndex: number; language: string; title: string }) =>
-        lang === 'ja'
-          ? s.language.includes('ja') || s.language.includes('jpn') || s.title.toLowerCase().includes('jap')
-          : s.language.includes('en') || s.language.includes('eng') || s.title.toLowerCase().includes('eng')
-      );
-      if (match) selectedAudioIdx = match.index;
-    }
+    const selectedAudioIdx = this.selectAudioStreamIndex(media.audioStreams, lang);
 
     const clipId = String(concept.id).padStart(2, '0');
     const file = path.join(output, `reelmind_${clipId}.mp4`);

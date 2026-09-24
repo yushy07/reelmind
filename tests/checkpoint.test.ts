@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import { CheckpointStore, fingerprint, seal } from '../electron/checkpoint';
+import { CheckpointStore } from '../electron/checkpoint';
 
 test('CheckpointStore fingerprints data deterministically', () => {
   const store = new CheckpointStore();

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Store, removeWorkspace, externalDirectory, hash } from './storage';
+import { Store, removeWorkspace, externalDirectory, hash, exists } from './storage';
 import { DAY, validateUrl } from './core';
 import { ModelManager, TURBO } from './models';
 import { run } from './process';
@@ -19,8 +19,6 @@ import type {
   AnimeCreateInput,
   AnimeRerenderOptions,
 } from '../shared/types';
-
-const exists = async (file: string) => !!await fs.stat(file).catch(() => null);
 
 export class Service {
   saving = new Set<string>();
@@ -426,15 +424,6 @@ export class Service {
     this.queue.register(job.id, controller);
     try {
       await this.podcastPipeline.process(job, controller.signal);
-    } finally {
-      this.queue.release(job.id);
-    }
-  }
-  async processAnime(job: Job): Promise<void> {
-    const controller = new AbortController();
-    this.queue.register(job.id, controller);
-    try {
-      await this.animePipeline.process(job, controller.signal);
     } finally {
       this.queue.release(job.id);
     }

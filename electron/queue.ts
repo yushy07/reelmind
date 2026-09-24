@@ -83,6 +83,3 @@ export class JobQueue {
     return this.active.entries();
   }
 }
-
-// Backward compatibility alias
-export { JobQueue as Queue };

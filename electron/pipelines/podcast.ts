@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { atomicJSON, cleanupTemps, hash } from '../storage';
+import { atomicJSON, hash, exists, cleanupWorkingTemps } from '../storage';
 import { DAY, planEdit, validateClipCandidate } from '../core';
 import { analyze } from '../providers';
 import { candidateTexts, semanticSelection, SEMANTIC_VERSION } from '../semantic';
@@ -10,8 +10,6 @@ import { probe, render } from '../media';
 import { parsePastedTranscript } from '../pasted-transcript';
 import type { Job, Stage, Transcript, Candidate, Frame } from '../../shared/types';
 import type { PipelineContext } from './base';
-
-const exists = async (file: string) => !!await fs.stat(file).catch(() => null);
 
 export class PodcastPipeline {
   constructor(private ctx: PipelineContext) {}
@@ -402,36 +400,7 @@ export class PodcastPipeline {
       });
       this.ctx.notify(job);
     } catch (error) {
-      const partials: string[] = [];
-      try {
-        for (const n of await fs.readdir(output)) {
-          if (n.endsWith('.partial.mp4') || n.endsWith('.part') || n.endsWith('.part.wav')) {
-            partials.push(path.join(output, n));
-          }
-        }
-      } catch {}
-      try {
-        for (const n of await fs.readdir(work)) {
-          if (n.endsWith('.part') || n.endsWith('.part.wav') || n === 'captions.ass' || n === 'render.ffscript') {
-            partials.push(path.join(work, n));
-          }
-        }
-      } catch {}
-      try {
-        for (const e of await fs.readdir(work)) {
-          if (e.startsWith('clip_') || e.startsWith('amv_')) {
-            const d = path.join(work, e);
-            try {
-              for (const n of await fs.readdir(d)) {
-                if (n.endsWith('.partial.mp4') || n === 'captions.ass' || n === 'render.ffscript') {
-                  partials.push(path.join(d, n));
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {}
-      await cleanupTemps(partials);
+      await cleanupWorkingTemps(work, output);
       this.ctx.update(job, {
         stage: signal.aborted ? 'paused' : 'failed',
         cleanupAt: this.ctx.store.now() + DAY,

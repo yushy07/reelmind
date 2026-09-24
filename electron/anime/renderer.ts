@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { run } from '../process';
-import { probe } from '../media';
+import { probe, escapeFfmpegFilterPath } from '../media';
 import type { AnimeEditPlan } from '../../shared/types';
 
 /**
@@ -82,7 +82,7 @@ export function buildAnimeFilterGraph(
   const vconcatInputs = cuts.map((_, i) => `[v${i}]`).join('');
   let vconcat: string;
   if (plan.captions && runtime) {
-    const escapedFonts = path.join(runtime, 'fonts').replaceAll('\\', '/').replace(':', '\\:').replaceAll("'", "\\'");
+    const escapedFonts = escapeFfmpegFilterPath(path.join(runtime, 'fonts'));
     vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,ass=filename='captions.ass':fontsdir='${escapedFonts}',format=yuv420p[vout]`;
   } else {
     vconcat = `${vconcatInputs}concat=n=${cuts.length}:v=1:a=0,format=yuv420p[vout]`;
