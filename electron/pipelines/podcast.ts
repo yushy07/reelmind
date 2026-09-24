@@ -269,7 +269,7 @@ export class PodcastPipeline {
       phase('analyzing', 54, 'Finding moments across the entire video');
       const candidates = await this.ctx.checkpoints.checkpoint<Candidate[]>(
         path.join(work, 'candidates.json'),
-        (d) => Array.isArray(d) && d.every((c) => c.end - c.start >= 30 && c.end - c.start <= 60),
+        (d) => Array.isArray(d) && d.every((c) => c.end - c.start >= 25 && c.end - c.start <= 65),
         () =>
           analyze(
             transcript,
@@ -327,7 +327,7 @@ export class PodcastPipeline {
         this.ctx.update(job, {
           stage: 'completed',
           progress: 100,
-          message: 'No strong 30–60 second moments found. Try a different video.',
+          message: 'No strong 25–60 second moments found. Try a different video.',
           cleanupAt: this.ctx.store.now() + DAY,
         });
         this.ctx.notify(job);
@@ -340,6 +340,12 @@ export class PodcastPipeline {
           const id = String(i + 1).padStart(2, '0');
           const file = path.join(output, `reelmind_${id}.mp4`);
           const plan = planEdit(candidates[i], transcript, frames, media.fps);
+          if (plan.duration < 24.5) {
+            this.ctx.update(job, {
+              fallbacks: [...new Set([...(job.fallbacks || []), `Skipped candidate ${i + 1} (${plan.duration.toFixed(1)}s under 25s threshold)`])]
+            });
+            continue;
+          }
           const planHash = this.ctx.checkpoints.fingerprint({ plan, quality: this.ctx.store.settings().quality });
           const previous = job.outputs.find((r) => r.id === id);
           if (previous?.planHash === planHash && await exists(file)) {

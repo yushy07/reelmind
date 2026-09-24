@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {validateUrl,selectCandidates,makeCaptions,planEdit,settingsSchema} from '../electron/core';
+import {validateUrl,selectCandidates,makeCaptions,planEdit,settingsSchema,expandCandidateContext} from '../electron/core';
 import {externalDirectory,removeWorkspace,Store,defaults} from '../electron/storage';
 import {analyze} from '../electron/providers';
 import type {Transcript,Candidate} from '../shared/types';
@@ -28,3 +28,41 @@ test('multiple cloud candidates receive a whole-video ranking pass',async()=>{
 });
 test('storage restricts export and deletion; originals survive',async()=>{const rawRoot=await mkdtemp(path.join(os.tmpdir(),'reelmind-test-'));const root=await realpath(rawRoot).catch(()=>rawRoot);try{const work=path.join(root,'work');const job=path.join(work,'job');const external=path.join(root,'external');await mkdir(job,{recursive:true});await mkdir(external);await writeFile(path.join(external,'source.mp4'),'original');await assert.rejects(()=>externalDirectory(job,[work]));assert.equal(await externalDirectory(external,[work]),await realpath(external).catch(()=>external));await assert.rejects(()=>removeWorkspace(work,external));await assert.rejects(()=>removeWorkspace(work,work));await removeWorkspace(work,job);assert.equal(await readFile(path.join(external,'source.mp4'),'utf8'),'original');}finally{await rm(root,{recursive:true,force:true});}});
 test('SQLite retains settings across reconnect',async()=>{const dir=await mkdtemp(path.join(os.tmpdir(),'reelmind-db-'));try{const file=path.join(dir,'db.sqlite');const first=new Store(file);first.setSettings({...defaults,quality:'high'});first.db.close();const second=new Store(file);assert.equal(second.settings().quality,'high');second.db.close();}finally{await rm(dir,{recursive:true,force:true});}});
+
+test('expandCandidateContext intelligently expands short moments (< 25s) to at least 25s',()=>{
+  const shortMoments:Candidate={start:30,end:34,hook:'The core breakthrough',context:'A brief statement',payoff:'Mind blown.',reason:'Short moment',category:'insight',score:88};
+  const expanded=expandCandidateContext(shortMoments,t);
+  assert.ok(expanded!==null);
+  assert.ok(expanded.end-expanded.start>=25.0,`Expected duration >= 25s, got ${expanded.end-expanded.start}`);
+  assert.ok(expanded.end-expanded.start<=60.0,`Expected duration <= 60s, got ${expanded.end-expanded.start}`);
+  assert.ok(expanded.start<=30);
+  assert.ok(expanded.end>=34);
+});
+
+test('selectCandidates guarantees no clip under 25 seconds is selected',()=>{
+  const pool:Candidate[]=[
+    {start:10,end:14,hook:'Short 4s fragment',context:'',payoff:'',reason:'Too short',category:'story',score:95},
+    {start:50,end:85,hook:'Good 35s story',context:'Full context',payoff:'Clear payoff',reason:'Complete story',category:'story',score:90}
+  ];
+  const selected=selectCandidates(pool,t);
+  for(const c of selected){
+    assert.ok(c.end-c.start>=25.0,`Found clip under 25s: ${c.end-c.start}`);
+    assert.ok(c.end-c.start<=60.0);
+  }
+});
+
+test('makeCaptions produces animated ASS bursts with 9:16 safe area margin and word highlighting',()=>{
+  const words=[
+    {start:0.0,end:0.4,text:'The'},
+    {start:0.45,end:0.8,text:'biggest'},
+    {start:0.85,end:1.2,text:'secret'},
+    {start:1.25,end:1.6,text:'revealed'}
+  ];
+  const ass=makeCaptions(words,{aspectRatio:'9:16',preset:'reelmind'});
+  assert.ok(ass.includes('PlayResX: 1080'));
+  assert.ok(ass.includes('PlayResY: 1920'));
+  assert.ok(ass.includes('MarginV, Encoding'));
+  assert.ok(ass.includes('520,1'), 'Must include 520px vertical margin for 9:16 UI safe area');
+  assert.ok(ass.includes('&H0000F5FF&') || ass.includes('&H0000E6FF&'), 'Must include highlight color for active/emphasis words');
+  assert.ok(ass.includes('SECRET'), 'Keyword emphasis should trigger uppercase pop');
+});
