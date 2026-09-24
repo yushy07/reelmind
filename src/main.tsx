@@ -14,6 +14,7 @@ import { ProjectDetail } from './components/ProjectDetail';
 import { Library } from './components/Library';
 import { SettingsView } from './components/SettingsView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { StatusProvider, useStatus } from './context/StatusContext';
 import { podcastStages, animeStages } from './lib/stages';
 
 declare global {
@@ -25,53 +26,20 @@ declare global {
 const api = window.reelmind;
 
 function App() {
-  const [data, setData] = useState<Status | null>(null);
+  const { data, refresh, busy, act, error, setError, toast, setToast } = useStatus();
   const [studio, setStudio] = useState<'podcast' | 'anime'>('podcast');
   const [page, setPage] = useState<'home' | 'new' | 'library' | 'settings'>('home');
   const [selected, setSelected] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState('');
-
-  const refresh = () => api?.status().then(setData).catch((e) => setError(e.message));
-
-  useEffect(() => {
-    refresh();
-    const unsubscribe = api?.subscribe(() => refresh());
-    const timer = setInterval(refresh, 5000);
-    return () => {
-      unsubscribe?.();
-      clearInterval(timer);
-    };
-  }, []);
 
   useEffect(
     () =>
       api?.onReady((id) => {
         setSelected(id);
-        refresh();
+        void refresh();
         setToast('Your Reels are ready. Choose Save Reels to keep them in your own folder.');
       }),
-    []
+    [refresh, setToast]
   );
-
-  const act = async (fn: () => Promise<unknown>) => {
-    setBusy(true);
-    setError('');
-    try {
-      await fn();
-      await refresh();
-    } catch (e) {
-      setError(
-        String(e instanceof Error ? e.message : e).replace(
-          /^Error invoking remote method '[^']+': Error: /,
-          ''
-        )
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const go = (p: typeof page) => {
     setPage(p);
@@ -165,12 +133,12 @@ function App() {
                   if (dest) setToast(`Your Reels are saved in ${dest}`);
                 })
               }
-              onRerender={(conceptId, opts) =>
-                act(async () => {
+              onRerender={async (conceptId, opts) => {
+                await act(async () => {
                   if (api?.rerenderAnime) await api.rerenderAnime(job.id, conceptId, opts);
                   setToast('AMV edit re-rendered successfully.');
-                })
-              }
+                });
+              }}
               back={() => setSelected(null)}
             />
           ) : page === 'new' ? (
@@ -237,6 +205,8 @@ function App() {
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <App />
+    <StatusProvider>
+      <App />
+    </StatusProvider>
   </ErrorBoundary>
 );

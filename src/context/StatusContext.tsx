@@ -7,7 +7,7 @@ interface StatusContextValue {
   busy: boolean;
   busyById: Record<string, boolean>;
   isBusy: (id?: string) => boolean;
-  act: (actionIdOrFn: string | (() => Promise<unknown>), fn?: () => Promise<unknown>) => Promise<unknown>;
+  act: <T = void>(actionIdOrFn: string | (() => Promise<T>), fn?: () => Promise<T>) => Promise<T | undefined>;
   error: string;
   setError: (err: string) => void;
   toast: string;
@@ -50,10 +50,10 @@ export function StatusProvider({ children }: { children: React.ReactNode }) {
   }, [busy, busyById]);
 
   const act = useCallback(
-    async (actionIdOrFn: string | (() => Promise<unknown>), maybeFn?: () => Promise<unknown>) => {
+    async <T = void>(actionIdOrFn: string | (() => Promise<T>), maybeFn?: () => Promise<T>): Promise<T | undefined> => {
       const actionId = typeof actionIdOrFn === 'string' ? actionIdOrFn : 'global';
       const fn = typeof actionIdOrFn === 'function' ? actionIdOrFn : maybeFn;
-      if (!fn) return;
+      if (!fn) return undefined;
 
       setBusy(true);
       setBusyById((prev) => ({ ...prev, [actionId]: true }));

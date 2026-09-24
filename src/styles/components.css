@@ -721,6 +721,7 @@ progress::-webkit-progress-value { background: var(--accent); border-radius:999p
 .error-boundary-msg { display:block; margin-top:8px; opacity:0.8; }
 .error-boundary-btn { margin-top:12px; }
 .icon-inline-sm { display:inline; margin-right:4px; vertical-align:middle; }
+.waveform-bar { height: var(--h, 14px); }
 
 /* Responsive */
 @media (max-width: 1080px) {

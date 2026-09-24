@@ -13,8 +13,10 @@ function Verify-SHA256([string]$file,[string]$expected) {
 $pythonDir = Join-Path $runtimeRoot 'python'
 New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
 $pythonExe = Join-Path $pythonDir 'python.exe'
-# Pin Python embed hash: update when bumping the URL above.
-$pythonHash = ''
+$pinnedFile = Join-Path $PSScriptRoot 'pinned-assets.json'
+$pinned = if (Test-Path $pinnedFile) { Get-Content $pinnedFile -Raw | ConvertFrom-Json } else { $null }
+# Pin Python embed hash from pinned-assets.json or verified default
+$pythonHash = if ($pinned -and $pinned.assets.python.sha256) { $pinned.assets.python.sha256 } else { '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3' }
 if (-not (Test-Path -LiteralPath $pythonExe)) {
  Download-Asset 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' (Join-Path $runtimeRoot 'python.zip')
  Verify-SHA256 (Join-Path $runtimeRoot 'python.zip') $pythonHash
@@ -24,7 +26,7 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 }
 Download-Asset 'https://bootstrap.pypa.io/get-pip.py' (Join-Path $runtimeRoot 'get-pip.py')
 if (-not (Test-Path (Join-Path $pythonDir 'Lib/site-packages/pip'))) { & $pythonExe (Join-Path $runtimeRoot 'get-pip.py') --no-warn-script-location; if ($LASTEXITCODE) { throw 'pip setup failed' } }
-& $pythonExe -m pip install --disable-pip-version-check --no-warn-script-location -r (Join-Path $PSScriptRoot '../workers/requirements.txt')
+& $pythonExe -m pip install --no-cache-dir --disable-pip-version-check --no-warn-script-location -r (Join-Path $PSScriptRoot '../workers/requirements.txt')
 if ($LASTEXITCODE) { throw 'Worker dependency installation failed' }
 $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
 # Pin FFmpeg: fill ffmpegHash after `Get-FileHash ffmpeg.zip` on a trusted download.

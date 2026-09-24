@@ -27,8 +27,6 @@ interface ProjectDetailProps {
   back: () => void;
 }
 
-const detailStageLabels: Record<string, string> = { ...stageLabels, rendering: 'Rendering 9:16' };
-
 export function ProjectDetail({
   job,
   busy,
@@ -62,7 +60,7 @@ export function ProjectDetail({
           {job.name && job.name !== job.title && <small>Source Video: {job.title}</small>}
           <p>{job.message}</p>
         </div>
-        <span className={`badge ${job.stage}`}>{detailStageLabels[job.stage]}</span>
+        <span className={`badge ${job.stage}`}>{stageLabels[job.stage]}</span>
       </div>
 
       {/* Live Pipeline Tracker */}
@@ -75,7 +73,7 @@ export function ProjectDetail({
                   ? 'LAST SAVED STAGE'
                   : `${isAnime ? 'ANIME STUDIO' : (job.provider || 'LOCAL').toUpperCase()} · ACTIVE PIPELINE`}
               </span>
-              <h2>{recover ? detailStageLabels[currentStage] || 'Ready to resume' : detailStageLabels[job.stage]}</h2>
+              <h2>{recover ? stageLabels[currentStage] || 'Ready to resume' : stageLabels[job.stage]}</h2>
             </div>
             <span>
               {Math.floor(job.progress)}
@@ -92,7 +90,7 @@ export function ProjectDetail({
             {currentStages.slice(0, -1).map((s, i) => (
               <div key={s} className={stageIndex > i ? 'finished' : stageIndex === i ? 'current' : ''}>
                 <span>{stageIndex > i ? <Check size={16} /> : i + 1}</span>
-                {detailStageLabels[s]}
+                {stageLabels[s]}
               </div>
             ))}
           </div>

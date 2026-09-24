@@ -103,7 +103,7 @@ export function Overview({
               <AudioLines size={20} />
               <div className="waveform">
                 {Array.from({ length: 27 }, (_, i) => (
-                  <i key={i} data-h={8 + ((i * 17) % 20)} style={{ height: `${8 + ((i * 17) % 20)}px` }} />
+                  <i key={i} className="waveform-bar" style={{ ['--h' as any]: `${8 + ((i * 17) % 20)}px` }} />
                 ))}
               </div>
               <span>01:24:08</span>

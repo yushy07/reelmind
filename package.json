@@ -18,8 +18,9 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "setup:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-runtime.ps1",
     "notices": "node scripts/generate-notices.mjs",
-    "package": "npm run notices && npm run build && node scripts/check-runtime.mjs && electron-builder --win nsis",
-    "package:dir": "npm run build && node scripts/check-runtime.mjs && electron-builder --win --dir",
+    "build:packaged": "tsc --noEmit && vite build && node scripts/build.mjs --packaged",
+    "package": "npm run notices && npm run build:packaged && node scripts/check-runtime.mjs && electron-builder --win nsis",
+    "package:dir": "npm run build:packaged && node scripts/check-runtime.mjs && electron-builder --win --dir",
     "publish:release": "node scripts/publish-release.mjs"
   },
   "dependencies": {
@@ -73,7 +74,8 @@
           "!python.zip",
           "!get-pip.py",
           "!python/Scripts/**",
-          "!python/Lib/site-packages/pip/**"
+          "!python/Lib/site-packages/pip/**",
+          "!python/Lib/site-packages/setuptools/**"
         ]
       },
       {
@@ -83,7 +85,9 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "publisherName": "REELMIND",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
