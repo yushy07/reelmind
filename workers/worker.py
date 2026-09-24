@@ -115,7 +115,9 @@ def frame_video(args):
                     patch = np.zeros((12, 24), dtype=np.float32)
                 
                 if matched and prior is not None:
-                    patch_diff = np.abs(np.asarray(patch, dtype=np.float32) - np.asarray(prior['_patch'], dtype=np.float32))
+                    patch_a: Any = patch
+                    patch_b: Any = prior['_patch']
+                    patch_diff: Any = np.abs(np.subtract(patch_a, patch_b, dtype=np.float32))
                     motion = float(np.mean(patch_diff) / 255.0)
                 else:
                     motion = 0.0
