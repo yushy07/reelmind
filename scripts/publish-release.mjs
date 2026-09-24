@@ -58,16 +58,31 @@ async function main() {
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
-### What's New in v0.3.1:
-- **Complete Studio UI Overhaul:** Professional dark obsidian and glassmorphic theme with physical specular bevels, layered surfaces, and ambient radial mesh lighting.
-- **Studio-Specific Visual Palettes:**
-  - **🎙️ Podcast Studio:** Amethyst & Electric Violet accents with warm ambient glow.
-  - **🎌 Anime AMV Studio:** Cyberpunk Neon Crimson & Beat-Sync Cyan rhythm highlights.
-- **Modular Component Architecture:** Refactored into clean, type-safe React components (Sidebar, Header, Overview, NewProjectPodcast, NewProjectAnime, ProjectDetail, AnimeReelCard, Library, SettingsView).
-- **Enhanced Studio Controls:** Tactile segmented studio mode switcher, neon-track audio mixer sliders for Voice/SFX and Music, dynamic style selector pills, and one-click re-render triggers.
-- **Live Radar Activity Pulse:** Real-time dual-ring radar beacon on header and hardware status indicators.
-- **Projects Library Repository:** Live project search, studio filtering (All / Podcast / Anime), and status chips (Completed / Active / Attention).
-- **Decorated Documentation & Showcases:** Refreshed README and UI showcase screenshots.
+### What's New in v0.4.0:
+- **Full-Spectrum Stability & Concurrency Hardening:**
+  - **FIFO JobQueue Concurrency Limiter:** Eliminates GPU/CPU over-subscription during batch ingestion and simultaneous renders.
+  - **CheckpointStore SHA-256 Checksum Sealing:** Protects against checkpoint invalidation hazards by separating speaker/diarization artifacts (\`diarization.json\`) from raw transcripts, guaranteeing instant, 100% idempotent resumes.
+  - **VRAM Lifecycle Management:** Two-pass memory architecture with strict \`gc.collect()\` and \`torch.cuda.empty_cache()\` guarantees smooth execution on 4 GB / 6 GB GPUs.
+  - **Hardened Protocol Sandbox:** Custom \`reel://\` protocol with UUID validation and path traversal guards.
+- **Anime AMV Studio Beat-Sync & Visual Intelligence:**
+  - Full 24-minute Japanese (original audio) / English dub episode processing + custom audio tracks.
+  - PySceneDetect shot decomposition & Librosa beat grid with exact BPM detection.
+  - Multi-signal visual impact scoring with peak climax sync (T_impact).
+  - 4 distinct AMV edit styles: Hard Beat Drop, Velocity Ramp, Slow Burn, Dialogue Pause.
+  - Dynamic character isolation & depth-of-field background blur (isolateCharacter).
+  - Interactive dual-track audio mixer (Anime Voice & SFX % vs. Music Track %) and real-time concept re-rendering.
+- **Podcast Studio Intelligence:**
+  - Multilingual faster-whisper (English, Hindi/Hinglish, Japanese) with Whisper Small and Whisper Turbo.
+  - OpenCV YuNet active-speaker neural face tracking & face framing.
+  - Sherpa ONNX speaker embeddings & diarization.
+  - MiniLM local vector semantic clip ranking (up to 12 distinct high-retention clips).
+  - Word-level animated karaoke captions (ASS with syllable/timing highlights).
+  - Manual transcript pasting and timed .srt / .vtt subtitle imports.
+- **Solar Amber & Electric Violet UI Redesign:**
+  - OLED obsidian dark canvas with physical glassmorphic blur and specular lighting.
+  - Custom sleek scrollbars, micro-animations, and hover glow transitions.
+  - 100% accessible with keyboard navigation (:focus-visible), standard CSS line-clamp compliance, and reduced motion support.
+- **73 Unit & Integration Tests (100% Passing)** with automated GitHub Actions CI.
 
 Source commit: ${commit}
 

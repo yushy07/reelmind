@@ -46,7 +46,7 @@ body:
         - OS: Windows 11 64-bit (or Windows 10)
         - GPU: NVIDIA RTX / Intel Arc / AMD Radeon / CPU
         - RAM / VRAM: 
-        - REELMIND Version: v0.3.1
+        - REELMIND Version: v0.4.0
     validations:
       required: true
   - type: textarea
