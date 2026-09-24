@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { run } from './process';
 import type { EditPlan } from '../shared/types';
-export async function probe(runtime:string,file:string,signal?:AbortSignal,minDuration=30){
+export async function probe(runtime:string,file:string,signal?:AbortSignal,minDuration=25){
   const data=JSON.parse(await run(path.join(runtime,'ffprobe.exe'),['-v','error','-show_format','-show_streams','-of','json',file],{signal}));
   const video=data.streams?.find((s:any)=>s.codec_type==='video'),audio=data.streams?.find((s:any)=>s.codec_type==='audio');
   const duration=Number(data.format?.duration);
@@ -46,8 +46,8 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
     const encode=async(args:string[])=>run(path.join(runtime,'ffmpeg.exe'),[...base,...args,output],{cwd:work,signal,progress:line=>{if(line.startsWith('out_time_us='))report(Math.min(.99,Number(line.slice(12))/1e6/plan.duration));}});
     try{if(!hardware.nvenc)throw new Error('NVENC not selected');await encode(['-c:v','h264_nvenc','-preset','p4','-cq',quality==='high'?'19':'23']);}
     catch{signal.throwIfAborted();fallback?.('GPU encoding unavailable; using software H.264');try{await encode(['-c:v','libopenh264','-b:v',quality==='high'?'10M':'7M','-maxrate',quality==='high'?'14M':'10M','-bufsize','20M','-threads',String(hardware.cpuThreads)]);}catch{signal.throwIfAborted();fallback?.('Software encoder unavailable; trying Windows H.264');await encode(['-c:v','h264_mf','-b:v',quality==='high'?'10M':'7M']);}}
-    const metadata=await probe(runtime,output,signal);
-    if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<28.5||metadata.duration>61.5)throw new Error(`Rendered Reel failed export validation: ${metadata.duration.toFixed(2)}s (expected 30–60s)`);
+    const metadata=await probe(runtime,output,signal,24.8);
+    if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<24.8||metadata.duration>95.0)throw new Error(`Rendered Reel failed export validation: ${metadata.duration.toFixed(2)}s (expected at least 25s)`);
   } finally {
     if (signal?.aborted) {
       await fs.unlink(subtitle).catch(()=>{});

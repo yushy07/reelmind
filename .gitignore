@@ -17,6 +17,7 @@ model-downloads/
 models/
 .test-data/
 work/
+scratch/
 outputs/
 cache/
 .cache/

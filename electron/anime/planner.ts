@@ -33,8 +33,8 @@ export function makeAnimeCaptions(
   const isSquare = aspectRatio === '1:1';
   const resX = isCinema ? 1920 : 1080;
   const resY = isCinema ? 1080 : (isSquare ? 1080 : 1920);
-  const marginV = isCinema ? 140 : (isSquare ? 160 : 380);
-  const fontSize = isCinema ? 54 : (isSquare ? 52 : 62);
+  const marginV = isCinema ? 140 : (isSquare ? 160 : 520);
+  const fontSize = isCinema ? 54 : (isSquare ? 52 : 72);
 
   const isJapanese = /[\u3040-\u30ff\u3400-\u9fff]/.test(dialogueText);
   const fontName = isJapanese ? 'Noto Sans CJK JP' : 'Noto Sans';
@@ -47,14 +47,14 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontName},${fontSize},&H00FFFFFF,&H00FFFFFF,&H00181514,&H80000000,-1,0,0,0,100,100,0,0,1,4.5,1.5,2,80,80,${marginV},1
+Style: Default,${fontName},${fontSize},&H00FFFFFF,&H00FFFFFF,&H00121110,&H80000000,-1,0,0,0,100,100,0,0,1,5.0,2.0,2,80,80,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
   const clean = escapeAss(dialogueText.trim());
-  const event = `Dialogue: 0,${assTime(start)},${assTime(Math.max(start + 0.3, end))},Default,,0,0,0,,{\\fad(120,120)}${clean}\n`;
+  const event = `Dialogue: 0,${assTime(start)},${assTime(Math.max(start + 0.3, end))},Default,,0,0,0,,{\\fad(100,100)\\t(0,80,\\fscx106\\fscy106)}${clean}\n`;
   return header + event;
 }
 
@@ -101,7 +101,9 @@ export function planAnimeEdit(
   // so each of the 3-5 rendered AMVs has a distinct musical portion
   const musicDuration = musicMap.duration || 180;
   const slotIndex = Math.max(0, (concept.id - 1) % 5);
-  const slotDuration = 18.0; // 18-second AMV clip
+  // Enforce minimum 25-second duration when sufficient footage is available
+  const totalAvailableShotsDuration = allShots.reduce((acc, s) => acc + s.duration, 0);
+  const slotDuration = totalAvailableShotsDuration >= 25.0 ? 28.0 : Math.max(12.0, Math.min(25.0, totalAvailableShotsDuration || 18.0));
   let musicOffset = Math.min(musicDuration - slotDuration - 2.0, slotIndex * 22.0 + 8.0);
   if (musicOffset < 0) musicOffset = 0;
 
@@ -125,7 +127,6 @@ export function planAnimeEdit(
   // If no neighboring shots exist, slice the concept's shot into build, impact, and payoff
   const shotIdx = allShots.findIndex(s => s.id === concept.shotId);
   const prevShot = shotIdx > 0 ? allShots[shotIdx - 1] : undefined;
-  const nextShot = shotIdx >= 0 && shotIdx < allShots.length - 1 ? allShots[shotIdx + 1] : undefined;
 
   const cuts: AnimeShotCut[] = [];
   let currentTimeline = 0.0;
@@ -211,14 +212,17 @@ export function planAnimeEdit(
   currentTimeline += actualImpactDur;
 
   // 3. Payoff / Resolution Phase (aftermath of the hit)
-  const remainingTarget = slotDuration - currentTimeline;
-  if (remainingTarget > 1.5) {
-    if (nextShot && nextShot.duration >= 1.5) {
-      const payoffDur = Math.min(remainingTarget, nextShot.duration);
+  // Sequence subsequent shots to build a full, coherent payoff segment
+  let nextIdx = shotIdx >= 0 ? shotIdx + 1 : -1;
+  while (currentTimeline < slotDuration - 0.5 && nextIdx >= 0 && nextIdx < allShots.length) {
+    const s = allShots[nextIdx];
+    const remainingTarget = slotDuration - currentTimeline;
+    const payoffDur = Math.min(remainingTarget, s.duration);
+    if (payoffDur >= 0.8) {
       cuts.push({
-        shotId: nextShot.id,
-        sourceStart: nextShot.start,
-        sourceEnd: nextShot.start + payoffDur,
+        shotId: s.id,
+        sourceStart: s.start,
+        sourceEnd: s.start + payoffDur,
         timelineStart: currentTimeline,
         timelineEnd: currentTimeline + payoffDur,
         duration: payoffDur,
@@ -228,15 +232,21 @@ export function planAnimeEdit(
         effect: concept.style === 'slow_burn' ? 'glow' : undefined
       });
       currentTimeline += payoffDur;
-    } else {
-      // Continue from concept aftermath or loop slightly
-      const extStart = Math.min(concept.end, impactCutEnd);
-      const extEnd = Math.min(concept.end + remainingTarget, concept.start + concept.duration);
-      const extDur = Math.max(1.0, extEnd - extStart);
+    }
+    nextIdx++;
+  }
+
+  // If still needing duration to reach slotDuration, expand from concept aftermath or earlier shots
+  if (currentTimeline < slotDuration - 0.5) {
+    const remainingTarget = slotDuration - currentTimeline;
+    const extStart = Math.min(concept.end, impactCutEnd);
+    const availableInConcept = Math.max(0, concept.end - extStart);
+    if (availableInConcept >= 0.8) {
+      const extDur = Math.min(remainingTarget, availableInConcept);
       cuts.push({
         shotId: concept.shotId,
         sourceStart: extStart,
-        sourceEnd: extEnd,
+        sourceEnd: extStart + extDur,
         timelineStart: currentTimeline,
         timelineEnd: currentTimeline + extDur,
         duration: extDur,

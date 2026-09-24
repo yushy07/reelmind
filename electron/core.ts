@@ -20,7 +20,7 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
   if (!words.length) return null;
 
   const rawDur = candidate.end - candidate.start;
-  if (rawDur > 65.0) return null;
+  if (rawDur > 75.0) return null;
 
   const isSentenceEnd = (idx: number) => {
     if (idx < 0 || idx >= words.length) return false;
@@ -60,8 +60,8 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
     endIdx = tmp;
   }
 
-  // If candidate is already >= 25s and <= 60s, snap gently (within ±3s) without exploding duration
-  if (rawDur >= 25.0 && rawDur <= 60.0) {
+  // If candidate is already >= 25s, snap gently (within ±3s) to clean sentence boundaries
+  if (rawDur >= 25.0 && rawDur <= 70.0) {
     let s = startIdx;
     while (s > 0 && candidate.start - words[s].start < 3.0 && !isSentenceStart(s)) {
       s--;
@@ -72,17 +72,17 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
     while (e < words.length - 1 && words[e].end - candidate.end < 3.0 && !isSentenceEnd(e)) {
       e++;
     }
-    if (isSentenceEnd(e) && words[e].end - words[startIdx].start <= 60.0) endIdx = e;
+    if (isSentenceEnd(e) && words[e].end - words[startIdx].start <= 70.0) endIdx = e;
   } else {
     // Candidate is < 25s: Expand outward to build a complete short-form story (Hook -> Context -> Payoff)
     let s = startIdx;
-    while (s > 0 && candidate.start - words[s].start < 12.0 && !isSentenceStart(s)) {
+    while (s > 0 && candidate.start - words[s].start < 15.0 && !isSentenceStart(s)) {
       s--;
     }
     if (isSentenceStart(s)) startIdx = s;
 
     let e = endIdx;
-    while (e < words.length - 1 && words[e].end - candidate.end < 12.0 && !isSentenceEnd(e)) {
+    while (e < words.length - 1 && words[e].end - candidate.end < 15.0 && !isSentenceEnd(e)) {
       e++;
     }
     if (isSentenceEnd(e)) endIdx = e;
@@ -93,25 +93,25 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
       if (!canBack && !canFwd) break;
 
       const durSoFar = words[endIdx].end - words[startIdx].start;
-      if (durSoFar >= 60.0) break;
+      if (durSoFar >= 65.0) break;
 
       const backSpan = candidate.start - words[startIdx].start;
-      if (canBack && (backSpan < 15.0 || !canFwd)) {
+      if (canBack && (backSpan < 18.0 || !canFwd)) {
         startIdx--;
-        while (startIdx > 0 && !isSentenceStart(startIdx) && candidate.start - words[startIdx].start < 20.0) {
+        while (startIdx > 0 && !isSentenceStart(startIdx) && candidate.start - words[startIdx].start < 25.0) {
           startIdx--;
         }
       } else if (canFwd) {
         endIdx++;
-        while (endIdx < words.length - 1 && !isSentenceEnd(endIdx) && words[endIdx].end - candidate.end < 45.0) {
+        while (endIdx < words.length - 1 && !isSentenceEnd(endIdx) && words[endIdx].end - candidate.end < 50.0) {
           endIdx++;
         }
       }
     }
   }
 
-  // Ensure duration <= 60.0s
-  while (words[endIdx].end - words[startIdx].start > 60.0 && endIdx > startIdx + 5) {
+  // Ensure duration <= 65.0s unless strong continuous segment requires it
+  while (words[endIdx].end - words[startIdx].start > 65.0 && endIdx > startIdx + 5) {
     let testEnd = endIdx - 1;
     while (testEnd > startIdx && !isSentenceEnd(testEnd)) {
       testEnd--;
@@ -124,19 +124,19 @@ export function expandCandidateContext(candidate: Candidate, t: Transcript): Can
   }
 
   const wordSpan = words[endIdx].end - words[startIdx].start;
-  if (wordSpan > 60.0) {
+  if (wordSpan < 24.8 || wordSpan > 75.0) {
     return null;
   }
 
-  const maxTotalPad = Math.max(0, 60.0 - wordSpan);
+  const maxTotalPad = Math.max(0, 65.0 - wordSpan);
   const startPad = Math.min(0.06, words[startIdx].start, maxTotalPad);
   const paddedStart = Math.max(0, words[startIdx].start - startPad);
-  const remainingEndPad = Math.max(0, 60.0 - (words[endIdx].end - paddedStart));
+  const remainingEndPad = Math.max(0, 65.0 - (words[endIdx].end - paddedStart));
   const endPad = Math.min(0.12, remainingEndPad);
   const paddedEnd = Math.min(t.duration, words[endIdx].end + endPad);
 
   const finalDur = paddedEnd - paddedStart;
-  if (finalDur < 25.0 || finalDur > 60.0) {
+  if (finalDur < 25.0 || finalDur > 75.0) {
     return null;
   }
 
@@ -163,14 +163,14 @@ export function selectCandidates(candidates:Candidate[],t:Transcript,options:{li
   const selected:Candidate[]=[];
   for(const raw of [...candidates].sort((a,b)=>b.score-a.score)) {
     if(!candidateSchema.safeParse(raw).success||raw.score<50) continue;
-    if(raw.end-raw.start>65) continue;
+    if(raw.end-raw.start>75) continue;
     const expanded = expandCandidateContext(raw, t);
     if(!expanded) continue;
     const c = expanded;
-    if(c.end-c.start<25||c.end-c.start>60) continue;
+    if(c.end-c.start<25.0||c.end-c.start>75.0) continue;
     if(selected.some(p=>Math.max(0,Math.min(c.end,p.end)-Math.max(c.start,p.start))/Math.min(c.end-c.start,p.end-p.start)>.3||(options.lexical!==false&&similarity(c.hook+' '+c.context,p.hook+' '+p.context)>.6))) continue;
     selected.push(c);
-    if(selected.length===(options.limit??12)) break;
+    if(selected.length===(options.limit??6)) break;
   }
   return selected;
 }
@@ -297,9 +297,11 @@ export function makeCaptions(words:Word[], options: CaptionOptions = {}):string 
 
       if (j === i) {
         const color = isEmphasis ? emphasisColor : activeColor;
-        const scale = isEmphasis ? '\\fscx112\\fscy112' : '\\fscx106\\fscy106';
         const displayedText = isEmphasis ? clean.toUpperCase() : clean;
-        return `{\\c${color}${scale}}${displayedText}{\\r}`;
+        const pop = isEmphasis
+          ? `{\\c${color}\\fscx116\\fscy116\\t(0,80,\\fscx108\\fscy108)}`
+          : `{\\c${color}\\fscx112\\fscy112\\t(0,70,\\fscx104\\fscy104)}`;
+        return `${pop}${displayedText}`;
       } else if (j < i) {
         return `{\\c${primaryColor}\\fscx100\\fscy100}${clean}`;
       } else {
@@ -325,28 +327,67 @@ export function planEdit(c:Candidate,t:Transcript,frames:Frame[],sourceFps=30):E
   let remaining=c.end-c.start;
   for(let i=1;i<words.length;i++){
     const gap=words[i].start-words[i-1].end;
-    if(gap>2.4&&remaining-(gap-.6)>=25.5){
+    if(gap>2.4&&remaining-(gap-.6)>=25.0){
       cuts.push({start,end:words[i-1].end+.3});
       start=words[i].start-.3;
       remaining-=gap-.6;
     }
   }
   cuts.push({start,end:c.end});
-  const remap=(n:number)=>{let offset=0;for(const cut of cuts){if(n<=cut.end)return offset+Math.max(0,n-cut.start);offset+=cut.end-cut.start;}return offset;};
+  let offset=0;
+  for(const cut of cuts) offset += cut.end - cut.start;
+  if(offset < 24.8 && c.end - c.start >= 24.8) {
+    cuts.length = 0;
+    cuts.push({start: c.start, end: c.end});
+    offset = c.end - c.start;
+  }
+  const remap=(n:number)=>{let o=0;for(const cut of cuts){if(n<=cut.end)return o+Math.max(0,n-cut.start);o+=cut.end-cut.start;}return o;};
   const outputWords=words.map(w=>({...w,start:remap(w.start),end:remap(w.end)}));
-  const shots:EditPlan['shots']=[];let offset=0;
+  const shots:EditPlan['shots']=[];
   const nearest=(time:number)=>frames.reduce<Frame|undefined>((best,f)=>!best||Math.abs(f.time-time)<Math.abs(best.time-time)?f:best,undefined);
+  let shotOffset=0;
   for(const cut of cuts){let a=cut.start;while(a<cut.end-.02){
       const min=a+2.7,max=Math.min(a+5.2,cut.end);const boundary=words.filter(w=>w.end>=min&&w.end<=max&&/[.!?।。！？,:;]$/.test(w.text.trim())).at(-1)?.end;
       const currentSpeaker=t.segments.find(x=>x.start<=a&&x.end>=a)?.speaker;const speakerBoundary=t.segments.find(s=>s.start>=min&&s.start<=max&&s.speaker!==currentSpeaker)?.start;
       const end=Math.min(cut.end,speakerBoundary||boundary||max);const frame=nearest(a),endFrame=nearest(Math.max(a,end-.2));const face=frame?.faces.find(f=>f.track===frame.activeTrack)||frame?.faces[0];const endFace=endFrame?.faces.find(f=>f.track===(face?.track??endFrame.activeTrack))||endFrame?.faces[0];const confident=!!frame&&frame.confidence>.65;
       const layout=confident&&face?'portrait':frame?.faces.length===2?'split':'fit';const center=confident&&face?Math.min(.85,Math.max(.15,face.x+face.w/2)):.5;const endCenter=confident&&endFace?Math.min(.85,Math.max(.15,endFace.x+endFace.w/2)):center;
       const transition:EditPlan['shots'][number]['transition']=speakerBoundary?'cut':shots.length%3===0?'punch':'reframe';
-      shots.push({start:offset+a-cut.start,end:offset+end-cut.start,center,endCenter,layout,centers:frame?.faces.slice(0,2).map(f=>f.x+f.w/2),zoom:transition==='punch'?1.1:1.03,transition});a=end;
+      shots.push({start:shotOffset+a-cut.start,end:shotOffset+end-cut.start,center,endCenter,layout,centers:frame?.faces.slice(0,2).map(f=>f.x+f.w/2),zoom:transition==='punch'?1.1:1.03,transition});a=end;
     }
-    offset+=cut.end-cut.start;
+    shotOffset+=cut.end-cut.start;
   }
   const motion=frames.length<2?0:frames.slice(1).reduce((n,f,i)=>n+Math.abs((f.faces[0]?.x||.5)-(frames[i].faces[0]?.x||.5)),0)/(frames.length-1);
   return {version:2,candidate:c,words:outputWords,shots,cuts,duration:offset,captions:makeCaptions(outputWords),fps:sourceFps>=50&&motion>.008?60:30,audio:{sourceOnly:true,lufs:-16}};
+}
+
+export function validateClipCandidate(plan: EditPlan, candidate: Candidate): { valid: boolean; reason?: string } {
+  if (!plan || !Number.isFinite(plan.duration) || plan.duration < 24.8) {
+    return { valid: false, reason: `Duration ${(plan?.duration || 0).toFixed(1)}s under 25s threshold` };
+  }
+  if (!plan.cuts || plan.cuts.length === 0 || plan.cuts.some(c => c.end <= c.start)) {
+    return { valid: false, reason: 'Invalid edit cuts timeline' };
+  }
+  if (!plan.words || plan.words.length === 0) {
+    return { valid: false, reason: 'No transcript words present in clip' };
+  }
+  if (!plan.captions || !plan.captions.includes('Dialogue:')) {
+    return { valid: false, reason: 'English captions missing or invalid' };
+  }
+  const lastWord = plan.words[plan.words.length - 1];
+  if (lastWord && lastWord.end > plan.duration + 0.35) {
+    return { valid: false, reason: 'Caption extends beyond clip boundary' };
+  }
+  if (plan.words.some(w => !w.text.trim())) {
+    return { valid: false, reason: 'Empty caption segment detected' };
+  }
+  if (!plan.audio || plan.audio.sourceOnly !== true) {
+    return { valid: false, reason: 'Original spoken audio not preserved' };
+  }
+  const lastText = plan.words.slice(-3).map(w => w.text).join(' ').trim();
+  const hasPayoffPunct = /[.!?।。！？]$/.test(lastText) || /[.!?।。！？]$/.test(candidate.payoff.trim());
+  if (!hasPayoffPunct && candidate.score < 80) {
+    return { valid: false, reason: 'Clip ends abruptly without completed thought' };
+  }
+  return { valid: true };
 }
 

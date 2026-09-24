@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicJSON, cleanupTemps, hash } from '../storage';
-import { DAY, planEdit } from '../core';
+import { DAY, planEdit, validateClipCandidate } from '../core';
 import { analyze } from '../providers';
 import { candidateTexts, semanticSelection, SEMANTIC_VERSION } from '../semantic';
 import { transcribeWithFallback } from '../transcription';
@@ -269,7 +269,7 @@ export class PodcastPipeline {
       phase('analyzing', 54, 'Finding moments across the entire video');
       const candidates = await this.ctx.checkpoints.checkpoint<Candidate[]>(
         path.join(work, 'candidates.json'),
-        (d) => Array.isArray(d) && d.every((c) => c.end - c.start >= 25 && c.end - c.start <= 65),
+        (d) => Array.isArray(d) && d.every((c) => c.end - c.start >= 25 && c.end - c.start <= 75),
         () =>
           analyze(
             transcript,
@@ -340,9 +340,10 @@ export class PodcastPipeline {
           const id = String(i + 1).padStart(2, '0');
           const file = path.join(output, `reelmind_${id}.mp4`);
           const plan = planEdit(candidates[i], transcript, frames, media.fps);
-          if (plan.duration < 24.5) {
+          const validation = validateClipCandidate(plan, candidates[i]);
+          if (!validation.valid) {
             this.ctx.update(job, {
-              fallbacks: [...new Set([...(job.fallbacks || []), `Skipped candidate ${i + 1} (${plan.duration.toFixed(1)}s under 25s threshold)`])]
+              fallbacks: [...new Set([...(job.fallbacks || []), `Skipped candidate ${i + 1} (${validation.reason})`])]
             });
             continue;
           }

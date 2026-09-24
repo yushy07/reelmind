@@ -213,6 +213,10 @@ export class AnimePipeline {
         const id = String(concept.id).padStart(2, '0');
         const file = path.join(output, `reelmind_${id}.mp4`);
         const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect);
+        if (media.duration >= 30.0 && plan.duration < 24.8) {
+          this.ctx.update(job, { message: `Skipping concept ${concept.title}: duration ${(plan.duration).toFixed(1)}s under 25s threshold` });
+          continue;
+        }
         plan.renderQuality = this.ctx.store.settings().quality;
         const planHash = this.ctx.checkpoints.fingerprint({ plan, quality: this.ctx.store.settings().quality });
         const previous = job.outputs.find((r) => r.id === id);
