@@ -1,6 +1,6 @@
 # Third-party license inventory
 
-Generated from the dependencies packaged with REELMIND 2026-09-23. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
+Generated from the dependencies packaged with REELMIND 2026-09-24. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
 
 ## Major runtime components
 
