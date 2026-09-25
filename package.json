@@ -1,13 +1,18 @@
 {
   "name": "reelmind",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "A personal, local-first Instagram Reels studio",
   "author": "Ayush Kant",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/yushy07/reelmind.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yushy07/reelmind.git"
+  },
   "homepage": "https://github.com/yushy07/reelmind#readme",
-  "bugs": { "url": "https://github.com/yushy07/reelmind/issues" },
+  "bugs": {
+    "url": "https://github.com/yushy07/reelmind/issues"
+  },
   "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -75,7 +80,11 @@
           "!get-pip.py",
           "!python/Scripts/**",
           "!python/Lib/site-packages/pip/**",
-          "!python/Lib/site-packages/setuptools/**"
+          "!python/Lib/site-packages/setuptools/**",
+          "!python/Lib/site-packages/nvidia/*/include/**",
+          "!python/Lib/site-packages/nvidia/*/lib/**",
+          "!python/Lib/site-packages/**/*.dist-info/**",
+          "!models/models--*/**"
         ]
       },
       {

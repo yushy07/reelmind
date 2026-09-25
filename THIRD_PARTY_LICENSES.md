@@ -1,6 +1,6 @@
 # Third-party license inventory
 
-Generated from the dependencies packaged with REELMIND 2026-09-24. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
+Generated from the dependencies packaged with REELMIND 2026-09-25. Package metadata and license files remain in the distributed runtime. This inventory does not change any upstream license.
 
 ## Major runtime components
 
@@ -496,6 +496,7 @@ Generated from the dependencies packaged with REELMIND 2026-09-24. Package metad
 | click | 8.5.0 | BSD-3-Clause |
 | cloudpickle | 3.1.2 | BSD-3-Clause |
 | colorama | 0.4.6 | See distribution metadata |
+| coloredlogs | 15.0.1 | MIT |
 | ctranslate2 | 4.8.2 | MIT |
 | decorator | 5.3.1 | BSD-2-Clause |
 | faster-whisper | 1.2.1 | MIT |
@@ -507,16 +508,24 @@ Generated from the dependencies packaged with REELMIND 2026-09-24. Package metad
 | httpcore | 1.0.9 | BSD-3-Clause |
 | httpx | 0.28.1 | BSD-3-Clause |
 | huggingface_hub | 1.32.0 | Apache-2.0 |
+| humanfriendly | 10.0 | MIT |
 | idna | 3.20 | BSD-3-Clause |
 | joblib | 1.6.0 | BSD-3-Clause |
 | lazy-loader | 0.6 | BSD-3-Clause |
 | librosa | 1.0.0 | ISC |
 | llvmlite | 0.49.0 | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception |
+| mpmath | 1.3.0 | BSD |
 | msgpack | 1.2.2 | Apache-2.0 |
 | narwhals | 2.26.0 | MIT |
 | numba | 0.67.0 | BSD |
 | numpy | 2.2.6 | Copyright (c) 2005-2024, NumPy Developers. |
-| onnxruntime | 1.30.0 | MIT License |
+| nvidia-cublas-cu12 | 12.9.2.10 | LicenseRef-NVIDIA-Proprietary |
+| nvidia-cuda-nvrtc-cu12 | 12.9.86 | LicenseRef-NVIDIA-Proprietary |
+| nvidia-cuda-runtime-cu12 | 12.9.79 | LicenseRef-NVIDIA-Proprietary |
+| nvidia-cudnn-cu12 | 9.26.0.51 | LicenseRef-NVIDIA-Proprietary |
+| nvidia-cufft-cu12 | 11.4.1.4 | LicenseRef-NVIDIA-Proprietary |
+| nvidia-nvjitlink-cu12 | 12.9.86 | LicenseRef-NVIDIA-Proprietary |
+| onnxruntime-gpu | 1.20.2 | MIT License |
 | opencv-python | 5.0.0.93 | Apache 2.0 |
 | opencv-python-headless | 4.11.0.86 | Apache 2.0 |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause |
@@ -525,6 +534,7 @@ Generated from the dependencies packaged with REELMIND 2026-09-24. Package metad
 | pooch | 1.9.0 | BSD-3-Clause |
 | protobuf | 7.36.2 | 3-Clause BSD License |
 | pycparser | 3.0 | BSD-3-Clause |
+| pyreadline3 | 3.5.6 | BSD |
 | PyYAML | 6.0.3 | MIT |
 | requests | 2.34.2 | Apache-2.0 |
 | scenedetect | 0.7.1 | BSD-3-Clause |
@@ -534,6 +544,7 @@ Generated from the dependencies packaged with REELMIND 2026-09-24. Package metad
 | sherpa-onnx-core | 1.13.8 | Apache-2.0 |
 | soundfile | 0.14.0 | BSD 3-Clause License |
 | soxr | 1.1.0 | LGPL-2.1-or-later |
+| sympy | 1.14.0 | BSD |
 | threadpoolctl | 3.7.0 | BSD-3-Clause |
 | tokenizers | 0.23.2 | See distribution metadata |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |

@@ -58,7 +58,7 @@ async function main() {
 
   const body = `Windows x64 installer update for REELMIND ${TAG}.
 
-### What's New in v0.4.0:
+### What's New in ${TAG}:
 - **Full-Spectrum Stability & Concurrency Hardening:**
   - **FIFO JobQueue Concurrency Limiter:** Eliminates GPU/CPU over-subscription during batch ingestion and simultaneous renders.
   - **CheckpointStore SHA-256 Checksum Sealing:** Protects against checkpoint invalidation hazards by separating speaker/diarization artifacts (\`diarization.json\`) from raw transcripts, guaranteeing instant, 100% idempotent resumes.
