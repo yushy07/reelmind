@@ -9,8 +9,8 @@ const OWNER = 'yushy07';
 const REPO = 'reelmind';
 const TAG = `v${pkg.version}`;
 const RELEASE_NAME = `REELMIND v${pkg.version}`;
-const ASSET_PATH = path.resolve('release', `REELMIND Setup ${pkg.version}.exe`);
-const ASSET_NAME = `REELMIND.Setup.${pkg.version}.exe`;
+const ASSET_PATH = path.resolve('release', `REELMIND-${pkg.version}-win64-portable.zip`);
+const ASSET_NAME = `REELMIND-${pkg.version}-win64-portable.zip`;
 
 async function computeSha256(filePath) {
   const hash = crypto.createHash('sha256');
