@@ -14,9 +14,10 @@ Runtime dependency downloads are defined in `scripts/setup-runtime.ps1` and `wor
 - Optional [faster-whisper-large-v3-turbo](https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo), revision `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf`: MIT. Converted Whisper large-v3-turbo weights, downloaded only on request; not included in the installer.
 - ONNX Runtime and Hugging Face Tokenizers are included in the Python runtime with their upstream license metadata. Pinned file sizes and SHA-256 hashes are in `shared/model-manifest.json`.
 
-## Music Intelligence & Segmentation References
+## Music Intelligence & Segmentation Architecture
 
-- [all-in-one-infer](https://github.com/openmirlab/all-in-one-infer): MIT License. Architecture reference for music structure inference, functional segment boundaries & labeling, beat/downbeat hierarchy, and GPU/CPU adaptive pipelines.
-- [msaf](https://github.com/urinieto/msaf): MIT License (main repository). Reference for structural boundary cross-checks, Foote checkerboard novelty convolution over harmonic & timbral self-similarity matrices (SSM), and segmentation. Only MIT-licensed algorithms adapted; GPL algorithms excluded.
-- [librosa](https://github.com/librosa/librosa): ISC License. Spectral analysis, CQT/STFT chroma extraction, onset envelopes, and RMS energy dynamics.
+ReelMind contains an independent ReelMind implementation inspired by published/public MIR methods, using Librosa, NumPy, and SciPy:
+- [all-in-one-infer](https://github.com/openmirlab/all-in-one-infer): Conceptual reference for music structure inference, functional segment taxonomy (`intro`, `verse`, `chorus`, `drop`, `break`, `bridge`, `outro`, `climax`), and downbeat detection via sub-bass spectral flux. (Independent ReelMind implementation; package and neural weights not installed).
+- [msaf](https://github.com/urinieto/msaf): Conceptual reference for Foote checkerboard novelty convolution over fused Chroma and MFCC self-similarity matrices. (Independent ReelMind implementation; package not installed).
+- [librosa](https://github.com/librosa/librosa): ISC License. Core DSP library used for audio loading, CQT chroma, MFCC, RMS dynamics, and beat tracking.
 

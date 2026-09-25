@@ -6,7 +6,7 @@ import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AnimeEpisodeAnalysis, MusicMap, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, Settings, Job } from '../shared/types';
+import type { AnimeEpisodeAnalysis, MusicMap, MusicRegion, AnimeShot, AnimeCandidate, AnimeEditConcept, AnimeEditPlan, Settings, Job } from '../shared/types';
 import { Service } from '../electron/service';
 import { Store } from '../electron/storage';
 import {
@@ -16,7 +16,12 @@ import {
   selectAnimeMoments,
   type AnimeEvaluationItem
 } from '../electron/anime/selection';
-import { matchMusicRegionsToConcepts } from '../electron/anime/matching';
+import {
+  matchMusicRegionsToConcepts,
+  scoreMusicRegionCompatibility,
+  buildAnimeClipProfile,
+  defaultMatchingConfig
+} from '../electron/anime/matching';
 import { planAnimeEdit } from '../electron/anime/planner';
 import { buildAnimeFilterGraph, renderAnimeAMV } from '../electron/anime/renderer';
 import { probe } from '../electron/media';
@@ -1187,11 +1192,34 @@ test('service.rerenderAnime re-plans and re-renders single concept with updated 
       await fs.copyFile(testVideo, musicSource);
     }
 
+    const testRegion: MusicRegion = {
+      id: 'reg_test',
+      start: 45.0,
+      end: 75.0,
+      duration: 30.0,
+      sectionLabel: 'chorus',
+      energy: 0.82,
+      peakEnergy: 0.95,
+      onsetDensity: 0.70,
+      beatCount: 65,
+      downbeatCount: 16,
+      qualityScore: 0.88,
+      beatAlignedStart: true,
+      downbeatAlignedStart: true,
+      beatAlignedEnd: true
+    };
+
     const musicMap: MusicMap = {
+      version: 2,
       duration: 180,
       bpm: 130,
       beats: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+      downbeats: [0.0, 2.0, 4.0],
       strongBeats: [1.5],
+      sections: [],
+      onsetTimes: [],
+      regions: [testRegion],
+      analyzer: 'mock',
       energySections: []
     };
     const sampleShots: AnimeShot[] = [
@@ -1258,16 +1286,18 @@ test('service.rerenderAnime re-plans and re-renders single concept with updated 
         bpm: 130,
         candidatesCount: 1,
         conceptsCount: 1,
+        musicRegions: [testRegion],
         concepts: sampleConcepts
       }
     };
     store.put(job);
 
-    // Execute rerenderAnime with new style 'velocity_ramp' and custom audio mix
+    // Execute rerenderAnime with new style 'velocity_ramp', custom audio mix, and musicRegionId
     await service.rerenderAnime(id, 1, {
       style: 'velocity_ramp',
       sourceAudioMix: 0.25,
-      musicMix: 0.90
+      musicMix: 0.90,
+      musicRegionId: 'reg_test'
     });
 
     // 1. Verify output file was replaced with actual rendered video
@@ -1281,17 +1311,21 @@ test('service.rerenderAnime re-plans and re-renders single concept with updated 
     assert.equal(updatedOutput.id, '01');
     assert.ok(updatedOutput.reason?.includes('velocity ramp'), `Reason should include 'velocity ramp', got: ${updatedOutput.reason}`);
 
-    // 3. Verify edit_concepts.json was updated on disk
+    // 3. Verify edit_concepts.json was updated on disk with new style and assigned music region
     const diskConcepts: AnimeEditConcept[] = JSON.parse(await fs.readFile(path.join(work, 'edit_concepts.json'), 'utf8'));
     assert.equal(diskConcepts[0].style, 'velocity_ramp');
+    assert.equal(diskConcepts[0].assignedMusicRegion?.id, 'reg_test');
+    assert.equal(updatedJob.animeAnalysis?.concepts?.[0].assignedMusicRegion?.id, 'reg_test');
 
-    // 4. Verify plan.json has custom audio mix and velocity style
+    // 4. Verify plan.json has custom audio mix, velocity style, and updated music region
     const planFile = path.join(work, 'amv_01', 'plan.json');
     assert.ok(await fs.stat(planFile).catch(() => null));
     const savedPlan: AnimeEditPlan = JSON.parse(await fs.readFile(planFile, 'utf8'));
     assert.equal(savedPlan.style, 'velocity_ramp');
     assert.equal(savedPlan.audio.sourceAudioMix, 0.25);
     assert.equal(savedPlan.audio.musicMix, 0.90);
+    assert.equal(savedPlan.audio.musicRegionId, 'reg_test');
+    assert.equal(savedPlan.audio.musicOffset, 45.0);
   } finally {
     store.db.close();
     await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
@@ -1537,6 +1571,214 @@ test('interrupted anime job in scenes or music stage transitions to paused in se
     store.db.close();
     await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
   }
+});
+
+test('music_service energy normalization remains consistent across loud and quiet masters', async () => {
+  const root = path.join(__dirname, '..');
+  const pythonBin = path.join(root, 'runtime', 'python', 'python.exe');
+  if (!await fs.stat(pythonBin).catch(() => null)) return;
+
+  const script = `
+import sys, os, json, numpy as np
+sys.path.insert(0, os.path.abspath('workers'))
+from music_service import classify_section_label
+
+# Synthetic section energy profiles at normal gain (1.0) and quiet gain (0.12)
+# Relative energy profile: low intro -> drop -> breakdown -> chorus
+# Normalization should yield equivalent functional section labels regardless of overall dBFS
+normal_rms = np.array([0.15, 0.20, 0.85, 0.90, 0.20, 0.25, 0.70, 0.75])
+quiet_rms = normal_rms * 0.12
+
+def test_norm(arr):
+    p05 = float(np.percentile(arr, 5))
+    p95 = float(np.percentile(arr, 95))
+    return np.clip((arr - p05) / (p95 - p05 + 1e-8), 0.0, 1.0)
+
+norm_normal = test_norm(normal_rms)
+norm_quiet = test_norm(quiet_rms)
+
+diff = np.max(np.abs(norm_normal - norm_quiet))
+assert diff < 1e-5, f"Norm difference too high: {diff}"
+
+l_loud, _ = classify_section_label(20.0, 28.0, 100.0, norm_normal[2], norm_normal[3], 0.5, norm_normal[1], None)
+l_quiet, _ = classify_section_label(20.0, 28.0, 100.0, norm_quiet[2], norm_quiet[3], 0.5, norm_quiet[1], None)
+assert l_loud == l_quiet == 'drop', f"Labels mismatch: loud={l_loud}, quiet={l_quiet}"
+
+print(json.dumps({'success': True, 'maxDiff': float(diff), 'label': l_loud}))
+`;
+
+  const { stdout } = await execFileAsync(pythonBin, ['-c', script]);
+  const res = JSON.parse(stdout.trim());
+  assert.equal(res.success, true);
+  assert.equal(res.label, 'drop');
+});
+
+test('music_service adaptive structural boundaries scale with tempo and bars', async () => {
+  const root = path.join(__dirname, '..');
+  const pythonBin = path.join(root, 'runtime', 'python', 'python.exe');
+  if (!await fs.stat(pythonBin).catch(() => null)) return;
+
+  const script = `
+import sys, os, json, numpy as np
+sys.path.insert(0, os.path.abspath('workers'))
+
+def calc_adaptive_min_dist(tempo_val, downbeats):
+    if len(downbeats) >= 2:
+        bar_duration = float(np.median(np.diff(downbeats)))
+    else:
+        bar_duration = 4.0 * (60.0 / max(40.0, tempo_val))
+    return max(5.0, min(14.0, 4.0 * bar_duration))
+
+# 1. Fast tempo (175 BPM, drum & bass / hyperpop)
+dist_fast = calc_adaptive_min_dist(175.0, [])
+# 2. Standard tempo (129 BPM, phonk / house / anime rock)
+dist_std = calc_adaptive_min_dist(129.2, [])
+# 3. Slow tempo (75 BPM, ballad / lofi)
+dist_slow = calc_adaptive_min_dist(75.0, [])
+
+assert dist_slow > dist_std > dist_fast, f"Distances do not scale: {dist_slow}, {dist_std}, {dist_fast}"
+assert 5.0 <= dist_fast <= 6.0, f"Fast distance unexpected: {dist_fast}"
+assert 7.0 <= dist_std <= 8.0, f"Std distance unexpected: {dist_std}"
+assert 12.0 <= dist_slow <= 14.0, f"Slow distance unexpected: {dist_slow}"
+
+print(json.dumps({
+    'fast': round(dist_fast, 3),
+    'std': round(dist_std, 3),
+    'slow': round(dist_slow, 3)
+}))
+`;
+
+  const { stdout } = await execFileAsync(pythonBin, ['-c', script]);
+  const res = JSON.parse(stdout.trim());
+  assert.ok(res.slow > res.std && res.std > res.fast);
+});
+
+test('generate_candidate_regions enforces MIN_MUSIC_REGION_DURATION >= 25s contract and configurable targets', async () => {
+  const root = path.join(__dirname, '..');
+  const pythonBin = path.join(root, 'runtime', 'python', 'python.exe');
+  if (!await fs.stat(pythonBin).catch(() => null)) return;
+
+  const script = `
+import sys, os, json, numpy as np
+sys.path.insert(0, os.path.abspath('workers'))
+from music_service import generate_candidate_regions, MIN_MUSIC_REGION_DURATION
+
+duration = 120.0
+beats = list(np.arange(0.0, duration, 0.5))
+downbeats = list(np.arange(0.0, duration, 2.0))
+sections = [
+    {'start': 0.0, 'end': 20.0, 'label': 'intro', 'energy': 0.3},
+    {'start': 20.0, 'end': 60.0, 'label': 'chorus', 'energy': 0.8},
+    {'start': 60.0, 'end': 100.0, 'label': 'verse', 'energy': 0.5},
+    {'start': 100.0, 'end': 120.0, 'label': 'outro', 'energy': 0.2}
+]
+
+regions = generate_candidate_regions(sections, beats, downbeats, duration, target_durations=[25.0, 30.0, 45.0, 60.0])
+assert len(regions) > 0, "No regions generated"
+
+durs = [r['duration'] for r in regions]
+min_dur = min(durs)
+max_dur = max(durs)
+assert min_dur >= MIN_MUSIC_REGION_DURATION, f"Found region below 25s: {min_dur}"
+
+has_25_30 = any(25.0 <= d <= 32.0 for d in durs)
+has_45 = any(40.0 <= d <= 50.0 for d in durs)
+has_60 = any(55.0 <= d <= 65.0 for d in durs)
+assert has_25_30 and has_45 and has_60, f"Missing duration tiers in: {set(round(d) for d in durs)}"
+
+short_dur = 18.0
+short_beats = list(np.arange(0.0, short_dur, 0.5))
+short_downbeats = list(np.arange(0.0, short_dur, 2.0))
+short_sections = [{'start': 0.0, 'end': 18.0, 'label': 'verse', 'energy': 0.5}]
+short_regions = generate_candidate_regions(short_sections, short_beats, short_downbeats, short_dur)
+
+assert len(short_regions) == 1, "Short track should produce 1 fallback region"
+assert short_regions[0].get('isFallback') == True, "Fallback region must have isFallback=True"
+assert short_regions[0]['duration'] == 18.0
+
+print(json.dumps({
+    'totalRegions': len(regions),
+    'minDuration': min_dur,
+    'maxDuration': max_dur,
+    'shortFallback': short_regions[0].get('isFallback')
+}))
+`;
+
+  const { stdout } = await execFileAsync(pythonBin, ['-c', script]);
+  const res = JSON.parse(stdout.trim());
+  assert.ok(res.minDuration >= 25.0);
+  assert.equal(res.shortFallback, true);
+});
+
+test('scoreMusicRegionCompatibility enforces diversity penalty tiers: exact, heavy, moderate, small, and distinct', () => {
+  const clip = buildAnimeClipProfile({
+    id: 1,
+    shotId: 1,
+    start: 0,
+    end: 4,
+    duration: 4,
+    impactTime: 2,
+    motionScore: 0.8,
+    faceScore: 0.3,
+    audioEnergyScore: 0.5,
+    transientScore: 0.9,
+    impactScore: 0.9,
+    totalScore: 0.9,
+    category: 'action',
+    hasDialogue: false,
+    dialogueText: '',
+    facesCount: 1,
+    maxFaceRatio: 0.2
+  });
+
+  // Baseline assigned region: [10.0s - 25.0s] (15s duration)
+  const baseRegion: MusicRegion = {
+    id: 'base',
+    start: 10.0,
+    end: 25.0,
+    duration: 15.0,
+    sectionLabel: 'drop',
+    energy: 0.85,
+    peakEnergy: 0.95,
+    onsetDensity: 0.70,
+    beatCount: 30,
+    downbeatCount: 8,
+    qualityScore: 0.85,
+    beatAlignedStart: true,
+    downbeatAlignedStart: true,
+    beatAlignedEnd: true
+  };
+
+  const assigned = [baseRegion];
+
+  // 1. Exact duplicate (100% overlap -> exactOverlapPenalty 0.95)
+  const exact = { ...baseRegion, id: 'exact' };
+  const scoreExact = scoreMusicRegionCompatibility(clip, exact, assigned);
+
+  // 2. Heavy overlap (12s / 15s = 80% overlap > 60% -> exactOverlapPenalty 0.95)
+  const heavy = { ...baseRegion, id: 'heavy', start: 13.0, end: 38.0, duration: 25.0 };
+  const scoreHeavy = scoreMusicRegionCompatibility(clip, heavy, assigned);
+
+  // 3. Moderate overlap (6s / 15s = 40% overlap between 20% and 60% -> penalty 0.60 * 0.40 = 0.24)
+  const moderate = { ...baseRegion, id: 'moderate', start: 19.0, end: 45.0, duration: 26.0 };
+  const scoreModerate = scoreMusicRegionCompatibility(clip, moderate, assigned);
+
+  // 4. Small overlap (3s overlap <= 5.0s, start delta 12s within 15s window -> nearby penalty 0.20)
+  const small = { ...baseRegion, id: 'small', start: 22.0, end: 50.0, duration: 28.0 };
+  const scoreSmall = scoreMusicRegionCompatibility(clip, small, assigned);
+
+  // 5. Completely distinct (0s overlap, start delta 50s > 15s -> penalty 0.0)
+  const distinct = { ...baseRegion, id: 'distinct', start: 60.0, end: 88.0, duration: 28.0 };
+  const scoreDistinct = scoreMusicRegionCompatibility(clip, distinct, assigned);
+
+  // Verification of diversity grading:
+  assert.equal(scoreExact, 0.01, 'Exact duplicate should be clamped to minimum 0.01');
+  assert.equal(scoreHeavy, 0.01, 'Heavy overlap (>60%) should be clamped to minimum 0.01');
+
+  assert.ok(scoreModerate > scoreHeavy, 'Moderate overlap should score higher than heavy');
+  assert.ok(scoreSmall > scoreModerate, 'Small overlap should score higher than moderate');
+  assert.ok(scoreDistinct > scoreSmall, 'Distinct region should score highest with zero overlap penalty');
+  assert.ok(scoreDistinct >= 0.70, 'Distinct action drop should score highly (>=0.70)');
 });
 
 

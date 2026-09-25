@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { Job, AnimeRerenderOptions } from '../../shared/types';
 import { AnimeReelCard } from './AnimeReelCard';
-import { durationFormat } from '../lib/format';
+import { durationFormat, formatTimeRange, energyLabel } from '../lib/format';
 import { podcastStages, animeStages, stageLabels } from '../lib/stages';
 
 interface ProjectDetailProps {
@@ -214,7 +214,7 @@ export function ProjectDetail({
                     <p>{c.description}</p>
                     {c.assignedMusicRegion && (
                       <div className="concept-music-pill">
-                        🎵 Music: {c.assignedMusicRegion.start}s–{c.assignedMusicRegion.end}s ({c.assignedMusicRegion.sectionLabel.toUpperCase()} · {Math.round(c.assignedMusicRegion.energy * 100)}% energy)
+                        🎵 Music: {formatTimeRange(c.assignedMusicRegion.start, c.assignedMusicRegion.end)} ({c.assignedMusicRegion.sectionLabel.toUpperCase()} · {energyLabel(c.assignedMusicRegion.energy)})
                       </div>
                     )}
                     <div className="concept-footer">

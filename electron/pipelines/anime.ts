@@ -359,14 +359,32 @@ export class AnimePipeline {
     const concept = concepts.find((c) => c.id === conceptId);
     if (!concept) throw new Error(`AMV Concept #${conceptId} not found.`);
 
-    if (options.style) {
+    let conceptsUpdated = false;
+    if (options.style && concept.style !== options.style) {
       concept.style = options.style;
-      await atomicJSON(conceptsFile, concepts);
+      conceptsUpdated = true;
       if (job.animeAnalysis?.concepts) {
         const jc = job.animeAnalysis.concepts.find((c) => c.id === conceptId);
         if (jc) jc.style = options.style;
       }
     }
+
+    if (options.musicRegionId !== undefined) {
+      const newRegion = (musicMap.regions || []).find((r) => r.id === options.musicRegionId);
+      if (newRegion) {
+        concept.assignedMusicRegion = newRegion;
+        conceptsUpdated = true;
+        if (job.animeAnalysis?.concepts) {
+          const jc = job.animeAnalysis.concepts.find((c) => c.id === conceptId);
+          if (jc) jc.assignedMusicRegion = newRegion;
+        }
+      }
+    }
+
+    if (conceptsUpdated) {
+      await atomicJSON(conceptsFile, concepts);
+    }
+
     const aspect = options.aspectRatio || job.input.outputAspect || '9:16';
     const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect, {
       musicOffset: options.musicOffset,

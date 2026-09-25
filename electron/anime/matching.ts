@@ -113,8 +113,12 @@ export function scoreMusicRegionCompatibility(
   else if (clip.category === 'action' && region.sectionLabel === 'break') sectionScore = 0.2;
   else if (clip.category === 'emotional' && region.sectionLabel === 'drop') sectionScore = 0.25;
 
-  // 3. Intrinsic region quality
-  const qualityScore = region.qualityScore || 0.7;
+  // 3. Intrinsic region quality & duration suitability
+  let qualityScore = region.qualityScore || 0.7;
+  const targetDur = clip.duration && clip.duration >= 15.0 ? clip.duration : 28.0;
+  const durDelta = Math.abs(region.duration - targetDur);
+  const durSuitability = Math.max(0.0, 1.0 - durDelta / 20.0);
+  qualityScore = qualityScore * 0.75 + durSuitability * 0.25;
 
   // 4. Temporal & diversity penalty against already assigned regions in this generation run
   let diversityPenalty = 0.0;
@@ -149,8 +153,11 @@ export function scoreMusicRegionCompatibility(
 /**
  * Matches a set of AnimeEditConcepts to distinct candidate MusicRegions.
  * Enforces:
- * - Unique assignment per clip
- * - No silent reuse of identical regions
+ * - Distinct assignment per clip (distinct assignment != zero temporal overlap)
+ * - Severe penalties (0.95) for identical or heavy temporal overlap (>60%)
+ * - Proportional penalties (0.60 * ratio) for moderate overlap (20-60%)
+ * - Permits small boundary overlap (<20%, e.g. sharing transition tail/head)
+ * - Nearby start timestamp penalty (+0.20 within 15s)
  * - Diversity and section-to-clip matching
  * - Graceful fallback if track duration is constrained
  */
@@ -207,8 +214,12 @@ export function matchMusicRegionsToConcepts(
       maxFaceRatio: 0.2
     });
 
-    // Score all available regions against this clip profile
-    const scoredRegions = candidateRegions.map((region) => ({
+    // Filter unassigned regions first to guarantee distinct assignment across clips
+    const unassigned = candidateRegions.filter(r => !assignedList.some(a => a.id === r.id));
+    const pool = unassigned.length > 0 ? unassigned : candidateRegions;
+
+    // Score available regions against this clip profile
+    const scoredRegions = pool.map((region) => ({
       region,
       score: scoreMusicRegionCompatibility(clipProfile, region, assignedList, config)
     }));
