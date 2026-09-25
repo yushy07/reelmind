@@ -29,6 +29,22 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
     gemini: false,
     openrouter: false,
   });
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<string>('');
+  const [telemetry, setTelemetry] = useState<any>(null);
+  const [loadingDiag, setLoadingDiag] = useState(false);
+
+  const loadDiagnostics = async () => {
+    setLoadingDiag(true);
+    try {
+      const report = await window.reelmind?.gpuDiagnostics?.();
+      const telem = await window.reelmind?.gpuTelemetry?.();
+      if (report) setDiagnostics(report);
+      if (telem) setTelemetry(telem);
+    } catch {}
+    setLoadingDiag(false);
+    setDiagOpen(true);
+  };
 
   return (
     <div className="narrow settings">
@@ -52,10 +68,46 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
           Whisper speech recognition, character reframing, Librosa audio rhythm mapping, and font rendering execute natively on your GPU/CPU.
         </p>
 
-        <div className="hardware">
-          <Monitor size={18} />
-          <span>{data.hardware || 'Detecting hardware acceleration…'}</span>
+        <div className="hardware" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Monitor size={18} />
+            <span>{data.hardware || 'Detecting hardware acceleration…'}</span>
+          </div>
+          <button
+            type="button"
+            className="secondary"
+            style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}
+            onClick={loadDiagnostics}
+            disabled={loadingDiag}
+          >
+            {loadingDiag ? 'Probing GPU…' : (diagOpen ? 'Refresh Diagnostics' : 'Inspect RTX 3050')}
+          </button>
         </div>
+
+        {diagOpen && diagnostics && (
+          <div style={{ marginTop: '12px', padding: '12px', background: '#18181b', color: '#e4e4e7', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', overflowX: 'auto', border: '1px solid #27272a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #3f3f46', paddingBottom: '4px' }}>
+              <span style={{ fontWeight: 'bold', color: '#4ade80' }}>● REAL-TIME GPU DIAGNOSTICS</span>
+              <button
+                type="button"
+                style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', fontSize: '11px' }}
+                onClick={() => setDiagOpen(false)}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{diagnostics}</pre>
+            {telemetry && (
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #3f3f46', color: '#93c5fd', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <span>GPU: {telemetry.gpuUtilPct}%</span>
+                <span>NVENC: {telemetry.encoderUtilPct}%</span>
+                <span>NVDEC: {telemetry.decoderUtilPct}%</span>
+                <span>VRAM: {telemetry.vramUsedMb} MB / {telemetry.vramTotalMb} MB</span>
+                <span>Temp: {telemetry.temperatureC}°C</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {!data.runtime.ready && (
           <div className="settings-gap">

@@ -69,8 +69,21 @@ def frame_video(args):
     else:
         save(args.transcript, transcript)
     cap = cv2.VideoCapture(args.input)
-    try:
+    gpu_active = getattr(args, 'gpu', False)
+    detector = None
+    if gpu_active:
+        try:
+            from shared.gpu import FaceDetectorCUDA
+            fdet = FaceDetectorCUDA(str(Path(args.models)/'face.onnx'), gpu=True, score_threshold=0.75, nms_threshold=0.3)
+            if getattr(fdet, 'active_provider', '') == 'CUDAExecutionProvider':
+                detector = fdet
+        except Exception:
+            pass
+
+    if detector is None:
         detector = cv2.FaceDetectorYN.create(str(Path(args.models)/'face.onnx'), '', (640, 360), .75, .3, 5000)
+
+    try:
         frames: List[Dict[str, Any]] = []
         previous: List[Dict[str, Any]] = []
         track_id = 0

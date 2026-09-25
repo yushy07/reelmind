@@ -212,6 +212,8 @@ export interface API {
   settings(settings:Settings,keys:Partial<Record<Provider,string>>):Promise<void>;
   setup():Promise<void>;
   turbo(action:'download'|'cancel'):Promise<void>;
+  gpuDiagnostics?():Promise<string>;
+  gpuTelemetry?():Promise<any>;
   subscribe(callback:()=>void):()=>void;
   onReady(callback:(id:string)=>void):()=>void;
 }

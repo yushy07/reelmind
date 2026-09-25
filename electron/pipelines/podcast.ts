@@ -170,7 +170,7 @@ export class PodcastPipeline {
               path.join(this.ctx.runtime, 'models'),
             ];
             if (mode === 'turbo') args.push('--model-path', this.ctx.models.directory(job.modelRevision));
-            else if (!cpuOnly && this.ctx.hardware.cudaSpeechCandidate) args.push('--gpu');
+            if (!cpuOnly && (this.ctx.hardware.cudaSpeechCandidate || this.ctx.hardware.whisperCuda)) args.push('--gpu');
             await run(path.join(this.ctx.runtime, 'python/python.exe'), args, {
               signal,
               progress: (line) => {
@@ -224,24 +224,28 @@ export class PodcastPipeline {
         path.join(work, 'frames.json'),
         (d) => Array.isArray(d),
         async () => {
+          const frameArgs = [
+            path.join(this.ctx.workers, 'worker.py'),
+            'frame',
+            '--input',
+            source,
+            '--audio',
+            audio,
+            '--transcript',
+            transcriptFile,
+            '--speakers-output',
+            speakersFile,
+            '--output',
+            path.join(work, 'frames.json'),
+            '--models',
+            path.join(this.ctx.runtime, 'models'),
+          ];
+          if (this.ctx.hardware.onnxGpu || this.ctx.hardware.cudaSpeechCandidate) {
+            frameArgs.push('--gpu');
+          }
           await run(
             path.join(this.ctx.runtime, 'python/python.exe'),
-            [
-              path.join(this.ctx.workers, 'worker.py'),
-              'frame',
-              '--input',
-              source,
-              '--audio',
-              audio,
-              '--transcript',
-              transcriptFile,
-              '--speakers-output',
-              speakersFile,
-              '--output',
-              path.join(work, 'frames.json'),
-              '--models',
-              path.join(this.ctx.runtime, 'models'),
-            ],
+            frameArgs,
             {
               signal,
               progress: (line) => {
@@ -295,17 +299,21 @@ export class PodcastPipeline {
               const input = path.join(work, 'embedding-input.json');
               const outputEmbedding = path.join(work, 'embeddings.json');
               await atomicJSON(input, candidateTexts(pool, transcript));
+              const semanticArgs = [
+                path.join(this.ctx.workers, 'semantic.py'),
+                '--input',
+                input,
+                '--output',
+                outputEmbedding,
+                '--models',
+                path.join(this.ctx.runtime, 'models', 'minilm'),
+              ];
+              if (this.ctx.hardware.onnxGpu || this.ctx.hardware.cudaSpeechCandidate) {
+                semanticArgs.push('--gpu');
+              }
               await run(
                 path.join(this.ctx.runtime, 'python/python.exe'),
-                [
-                  path.join(this.ctx.workers, 'semantic.py'),
-                  '--input',
-                  input,
-                  '--output',
-                  outputEmbedding,
-                  '--models',
-                  path.join(this.ctx.runtime, 'models', 'minilm'),
-                ],
+                semanticArgs,
                 { signal }
               );
               const vectors = JSON.parse(await fs.readFile(outputEmbedding, 'utf8'));

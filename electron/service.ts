@@ -51,12 +51,15 @@ export class Service {
     this.models = new ModelManager(root, changed);
     this.checkpoints = new CheckpointStore(store);
 
+    const self = this;
     const ctx: PipelineContext = {
       root,
       runtime,
       workers,
       store,
-      hardware: this.renderHardware,
+      get hardware() {
+        return self.renderHardware;
+      },
       checkpoints: this.checkpoints,
       models: this.models,
       work: (id: string) => this.work(id),

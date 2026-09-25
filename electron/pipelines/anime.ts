@@ -143,7 +143,7 @@ export class AnimePipeline {
             '--language',
             lang,
           ];
-          if (this.ctx.hardware.cudaSpeechCandidate) transcribeArgs.push('--gpu');
+          if (this.ctx.hardware.cudaSpeechCandidate || this.ctx.hardware.whisperCuda) transcribeArgs.push('--gpu');
           await run(path.join(this.ctx.runtime, 'python/python.exe'), transcribeArgs, {
             signal,
             progress: (line) => {
@@ -179,7 +179,7 @@ export class AnimePipeline {
             '--output',
             candidatesFile,
           ];
-          if (this.ctx.hardware.cudaSpeechCandidate) candidateArgs.push('--gpu');
+          if (this.ctx.hardware.cudaSpeechCandidate || this.ctx.hardware.onnxGpu) candidateArgs.push('--gpu');
           await run(path.join(this.ctx.runtime, 'python/python.exe'), candidateArgs, {
             signal,
             progress: (line) => {

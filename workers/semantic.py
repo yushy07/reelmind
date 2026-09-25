@@ -9,18 +9,40 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 from typing import Any
 
-def embed(texts, model_dir):
+def embed(texts, model_dir, gpu=False):
+    if gpu:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from shared.gpu import setup_cuda_environment
+            setup_cuda_environment()
+        except Exception:
+            pass
+
     import numpy as np  # type: ignore
     import onnxruntime as ort  # type: ignore
     from tokenizers import Tokenizer  # type: ignore
+
     np_any: Any = np
     tokenizer: Any = Tokenizer.from_file(str(Path(model_dir) / 'tokenizer.json'))
     tokenizer.enable_truncation(max_length=128, stride=0)
     options: Any = ort.SessionOptions()
     options.intra_op_num_threads = 4
-    session: Any = ort.InferenceSession(str(Path(model_dir) / 'model.onnx'), sess_options=options, providers=['CPUExecutionProvider'])
+    options.log_severity_level = 3
+
+    providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if gpu else ['CPUExecutionProvider']
+    try:
+        session: Any = ort.InferenceSession(str(Path(model_dir) / 'model.onnx'), sess_options=options, providers=providers)
+    except Exception as exc:
+        if gpu:
+            print(f'Embedding model: CPUExecutionProvider (Reason: {exc})', file=sys.stderr)
+        session = ort.InferenceSession(str(Path(model_dir) / 'model.onnx'), sess_options=options, providers=['CPUExecutionProvider'])
+
+    active_provider = session.get_providers()[0]
+    print(f'Embedding model: {active_provider}', file=sys.stderr)
+
     names = {item.name for item in session.get_inputs()}
     vectors = []
     for text in texts:
@@ -51,9 +73,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     for name in ['input', 'output', 'models']:
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--gpu', action='store_true', help='Use CUDA GPU execution provider')
     args = parser.parse_args()
     texts = json.loads(Path(args.input).read_text(encoding='utf-8'))
-    result = embed(texts, args.models)
+    result = embed(texts, args.models, gpu=args.gpu)
     temporary = args.output + '.tmp'
     Path(temporary).write_text(json.dumps(result), encoding='utf-8')
     os.replace(temporary, args.output)

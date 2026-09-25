@@ -115,7 +115,7 @@ export async function renderAnimeAMV(
   outputMp4: string,
   workDir: string,
   quality: string,
-  hardware: { nvenc: boolean; cpuThreads: number },
+  hardware: { nvenc: boolean; cpuThreads: number; nvdec?: boolean; ffmpegNvdec?: boolean },
   signal: AbortSignal,
   report: (progress: number) => void,
   fallback?: (message: string) => void,
@@ -133,31 +133,35 @@ export async function renderAnimeAMV(
   const graphScript = path.join(workDir, `render_amv_${plan.conceptId}.ffscript`);
   await fs.writeFile(graphScript, graph);
 
-  const baseArgs = [
-    '-hide_banner',
-    '-y',
-    '-filter_complex_threads', String(hardware.cpuThreads),
-    '-i', sourceVideo
-  ];
+  const buildBaseArgs = (hwaccel: boolean) => {
+    const args = [
+      '-hide_banner',
+      '-y',
+      '-filter_complex_threads', String(hardware.cpuThreads),
+      ...(hwaccel ? ['-hwaccel', 'cuda'] : []),
+      '-i', sourceVideo
+    ];
 
-  if (hasMusic) {
-    baseArgs.push('-i', sourceMusic!);
-  }
+    if (hasMusic) {
+      args.push('-i', sourceMusic!);
+    }
 
-  baseArgs.push(
-    '-filter_complex', graph,
-    '-map', '[vout]',
-    '-map', '[aout]',
-    '-c:a', 'aac',
-    '-b:a', '192k',
-    '-ar', '48000',
-    '-movflags', '+faststart',
-    '-progress', 'pipe:1',
-    '-nostats'
-  );
+    args.push(
+      '-filter_complex', graph,
+      '-map', '[vout]',
+      '-map', '[aout]',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-ar', '48000',
+      '-movflags', '+faststart',
+      '-progress', 'pipe:1',
+      '-nostats'
+    );
+    return args;
+  };
 
-  const encode = async (codecArgs: string[]) =>
-    run(path.join(runtime, 'ffmpeg.exe'), [...baseArgs, ...codecArgs, outputMp4], {
+  const encode = async (codecArgs: string[], hwaccel = false) =>
+    run(path.join(runtime, 'ffmpeg.exe'), [...buildBaseArgs(hwaccel), ...codecArgs, outputMp4], {
       cwd: workDir,
       signal,
       progress: line => {
@@ -168,23 +172,35 @@ export async function renderAnimeAMV(
       }
     });
 
-  // 1. Attempt hardware-accelerated NVENC encoding
+  // 1. Attempt hardware-accelerated NVENC encoding (+ NVDEC decode if supported)
   let rendered = false;
   if (hardware.nvenc) {
+    const canHwaccel = (hardware as any).ffmpegNvdec !== false && (hardware as any).nvdec !== false;
+    const nvencArgs = [
+      '-c:v', 'h264_nvenc',
+      '-preset', quality === 'high' ? 'p5' : 'p4',
+      '-cq', quality === 'high' ? '17' : '22',
+      '-b:v', quality === 'high' ? '14M' : '8M',
+      '-maxrate', quality === 'high' ? '18M' : '10M',
+      '-bufsize', quality === 'high' ? '25M' : '15M',
+      '-pix_fmt', 'yuv420p'
+    ];
     try {
-      await encode([
-        '-c:v', 'h264_nvenc',
-        '-preset', quality === 'high' ? 'p5' : 'p4',
-        '-cq', quality === 'high' ? '17' : '22',
-        '-b:v', quality === 'high' ? '14M' : '8M',
-        '-maxrate', quality === 'high' ? '18M' : '10M',
-        '-bufsize', quality === 'high' ? '25M' : '15M',
-        '-pix_fmt', 'yuv420p'
-      ]);
+      await encode(nvencArgs, canHwaccel);
       rendered = true;
     } catch {
       signal.throwIfAborted();
-      fallback?.('GPU NVENC encoding unavailable; using CPU H.264');
+      if (canHwaccel) {
+        try {
+          await encode(nvencArgs, false);
+          rendered = true;
+        } catch {
+          signal.throwIfAborted();
+          fallback?.('GPU NVENC encoding unavailable; using CPU H.264');
+        }
+      } else {
+        fallback?.('GPU NVENC encoding unavailable; using CPU H.264');
+      }
     }
   }
 

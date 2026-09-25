@@ -15,7 +15,7 @@ export async function probe(runtime:string,file:string,signal?:AbortSignal,minDu
   const audioStreams=(data.streams||[]).filter((s:any)=>s.codec_type==='audio').map((s:any,idx:number)=>({index:idx,streamIndex:Number(s.index),language:String(s.tags?.language||s.tags?.LANG||'').toLowerCase(),title:String(s.tags?.title||'')}));
   return {duration,width:Number(video.width),height:Number(video.height),videoCodec:video.codec_name,audioCodec:audio.codec_name,fps:Number.isFinite(fps)?fps:30,audioStreams};
 }
-export async function render(runtime:string,source:string,plan:EditPlan,output:string,work:string,quality:string,hardware:{nvenc:boolean;cpuThreads:number},signal:AbortSignal,report:(n:number)=>void,fallback?:(message:string)=>void){
+export async function render(runtime:string,source:string,plan:EditPlan,output:string,work:string,quality:string,hardware:{nvenc:boolean;cpuThreads:number;nvdec?:boolean},signal:AbortSignal,report:(n:number)=>void,fallback?:(message:string)=>void){
   const subtitle=path.join(work,'captions.ass');
   const ffscript=path.join(work,'render.ffscript');
   try {
@@ -46,10 +46,55 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
     const final=shots.map((_,i)=>`[o${i}]`).join('')+`concat=n=${shots.length}:v=1:a=0,ass=filename='captions.ass':fontsdir='${escapedFonts}',format=yuv420p[out];[audio]highpass=f=70,afftdn=nf=-28,loudnorm=I=-16:TP=-1.5:LRA=11[aout]`;
     const graph=[...inputCuts,join,split,...graphs,final].join(';\n');
     await fs.writeFile(ffscript,graph);
-    const base=['-hide_banner','-y','-filter_complex_threads',String(hardware.cpuThreads),'-ss',String(origin),'-t',String(plan.candidate.end-origin),'-i',source,'-filter_complex',graph,'-map','[out]','-map','[aout]','-c:a','aac','-b:a','192k','-ar','48000','-movflags','+faststart','-progress','pipe:1','-nostats'];
-    const encode=async(args:string[])=>run(path.join(runtime,'ffmpeg.exe'),[...base,...args,output],{cwd:work,signal,progress:line=>{if(line.startsWith('out_time_us='))report(Math.min(.99,Number(line.slice(12))/1e6/plan.duration));}});
-    try{if(!hardware.nvenc)throw new Error('NVENC not selected');await encode(['-c:v','h264_nvenc','-preset','p4','-cq',quality==='high'?'19':'23']);}
-    catch{signal.throwIfAborted();fallback?.('GPU encoding unavailable; using software H.264');try{await encode(['-c:v','libopenh264','-b:v',quality==='high'?'10M':'7M','-maxrate',quality==='high'?'14M':'10M','-bufsize','20M','-threads',String(hardware.cpuThreads)]);}catch{signal.throwIfAborted();fallback?.('Software encoder unavailable; trying Windows H.264');await encode(['-c:v','h264_mf','-b:v',quality==='high'?'10M':'7M']);}}
+
+    const buildBase = (hwaccel: boolean) => [
+      '-hide_banner',
+      '-y',
+      '-filter_complex_threads', String(hardware.cpuThreads),
+      ...(hwaccel ? ['-hwaccel', 'cuda'] : []),
+      '-ss', String(origin),
+      '-t', String(plan.candidate.end - origin),
+      '-i', source,
+      '-filter_complex', graph,
+      '-map', '[out]',
+      '-map', '[aout]',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-ar', '48000',
+      '-movflags', '+faststart',
+      '-progress', 'pipe:1',
+      '-nostats'
+    ];
+    const encode=async(args:string[], hwaccel=false)=>run(path.join(runtime,'ffmpeg.exe'),[...buildBase(hwaccel),...args,output],{cwd:work,signal,progress:line=>{if(line.startsWith('out_time_us='))report(Math.min(.99,Number(line.slice(12))/1e6/plan.duration));}});
+
+    let rendered = false;
+    if (hardware.nvenc) {
+      const canHwaccel = hardware.nvdec !== false;
+      try {
+        await encode(['-c:v', 'h264_nvenc', '-preset', 'p4', '-cq', quality === 'high' ? '19' : '23'], canHwaccel);
+        rendered = true;
+      } catch {
+        signal.throwIfAborted();
+        if (canHwaccel) {
+          try {
+            await encode(['-c:v', 'h264_nvenc', '-preset', 'p4', '-cq', quality === 'high' ? '19' : '23'], false);
+            rendered = true;
+          } catch {
+            signal.throwIfAborted();
+          }
+        }
+      }
+    }
+    if (!rendered) {
+      fallback?.('GPU encoding unavailable; using software H.264');
+      try {
+        await encode(['-c:v', 'libopenh264', '-b:v', quality === 'high' ? '10M' : '7M', '-maxrate', quality === 'high' ? '14M' : '10M', '-bufsize', '20M', '-threads', String(hardware.cpuThreads)], false);
+      } catch {
+        signal.throwIfAborted();
+        fallback?.('Software encoder unavailable; trying Windows H.264');
+        await encode(['-c:v', 'h264_mf', '-b:v', quality === 'high' ? '10M' : '7M'], false);
+      }
+    }
     const metadata=await probe(runtime,output,signal,24.8);
     if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<24.8||metadata.duration>95.0)throw new Error(`Rendered Reel failed export validation: ${metadata.duration.toFixed(2)}s (expected at least 25s)`);
   } finally {

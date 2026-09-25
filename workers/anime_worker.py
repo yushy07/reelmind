@@ -166,7 +166,7 @@ def transcribe(args):
     )
     save(args.output, data)
 
-def get_face_detector(models_dir=None):
+def get_face_detector(models_dir=None, gpu=False):
     """Retrieve anime face detector if available, otherwise fallback to OpenCV YuNet."""
     try:
         import importlib
@@ -180,6 +180,14 @@ def get_face_detector(models_dir=None):
         cv2_any: Any = cv2
         model_path = Path(models_dir) / 'face.onnx'
         if model_path.exists():
+            if gpu:
+                try:
+                    from shared.gpu import FaceDetectorCUDA
+                    fdet = FaceDetectorCUDA(str(model_path), gpu=True, score_threshold=0.35, nms_threshold=0.3)
+                    if getattr(fdet, 'active_provider', '') == 'CUDAExecutionProvider':
+                        return ('yunet_cuda', fdet)
+                except Exception:
+                    pass
             try:
                 detector = cv2_any.FaceDetectorYN.create(str(model_path), '', (320, 180), 0.35, 0.3, 10)
                 return ('yunet', detector)
@@ -187,7 +195,7 @@ def get_face_detector(models_dir=None):
                 pass
     return (None, None)
 
-def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
+def analyze_motion_and_faces(source_path, shots, models_dir=None, gpu=False, emit=None):
     """Scan shots with OpenCV: frame differencing, motion delta, brightness, sharpness, and anime face detection."""
     import cv2  # type: ignore
     import numpy as np  # type: ignore
@@ -203,8 +211,8 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
         total_frames = int(cap.get(cv2_any.CAP_PROP_FRAME_COUNT) or 0)
         target_w, target_h = 320, 180
 
-        det_type, detector = get_face_detector(models_dir)
-        if det_type == 'yunet' and detector is not None:
+        det_type, detector = get_face_detector(models_dir, gpu=gpu)
+        if det_type in ['yunet', 'yunet_cuda'] and detector is not None:
             detector.setInputSize((target_w, target_h))
 
         results = []
@@ -284,7 +292,7 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
                                     ratio = (w * h) / (target_w * target_h)
                                     best_face_ratio = max(best_face_ratio, float(ratio))
                                     best_face_conf = max(best_face_conf, float(bbox[4] if len(bbox) > 4 else 0.8))
-                        elif det_type == 'yunet':
+                        elif det_type in ['yunet', 'yunet_cuda']:
                             det_any: Any = detector
                             res = det_any.detect(small)
                             if res[1] is not None and len(res[1]) > 0:
@@ -327,7 +335,8 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, emit=None):
 
             if emit and (shot_idx % 10 == 0 or shot_idx == num_shots - 1):
                 pct = 0.05 + 0.50 * ((shot_idx + 1) / num_shots)
-                emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots}')
+                accel = 'GPU CUDA' if det_type == 'yunet_cuda' else 'CPU'
+                emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots} ({accel})', stage='candidate_scoring', device=accel)
 
     finally:
         cap.release()
@@ -433,7 +442,7 @@ def score_candidates(args):
         return
 
     emit(progress=0.05, message=f"Starting local visual and motion analysis across {len(shots)} shots")
-    motion_and_faces = analyze_motion_and_faces(source_path, shots, models_dir=models_dir, emit=emit)
+    motion_and_faces = analyze_motion_and_faces(source_path, shots, models_dir=models_dir, gpu=args.gpu, emit=emit)
 
     emit(progress=0.60, message="Analyzing audio energy and transient spikes")
     audio_signals = analyze_audio_signals(audio_path, shots) if audio_path and Path(audio_path).exists() else []

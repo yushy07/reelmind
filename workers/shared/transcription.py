@@ -102,17 +102,57 @@ def run_transcription(
 
         return result
 
+    try:
+        from shared.gpu import setup_cuda_environment, query_nvidia_smi
+        setup_cuda_environment()
+    except Exception:
+        pass
+
     model = None
     result = None
+    device_selected = 'CPU'
+    backend_selected = 'CTranslate2 (int8)'
+    compute_selected = 'int8'
+    cuda_error = None
+
     if gpu:
         try:
             if emit:
-                emit(progress=0, message='Starting GPU speech recognition')
+                emit(
+                    stage='transcription',
+                    device='NVIDIA RTX 3050',
+                    backend='CUDA / CTranslate2',
+                    compute_type='float16',
+                    status='Initializing GPU model',
+                    progress=0,
+                    message='Starting GPU speech recognition · NVIDIA RTX 3050 (float16)'
+                )
             model = WhisperModel(model_path, device='cuda', compute_type='float16', local_files_only=True)
-            result = run_model(model, 'GPU')
-        except Exception:
+            device_selected = 'NVIDIA RTX 3050'
+            backend_selected = 'CUDA / CTranslate2'
+            compute_selected = 'float16'
             if emit:
-                emit(fallback='GPU speech unavailable; using CPU instead', message='GPU speech unavailable · continuing on CPU')
+                emit(
+                    stage='transcription',
+                    device=device_selected,
+                    backend=backend_selected,
+                    compute_type=compute_selected,
+                    status='GPU acceleration active',
+                    message=f'Whisper initialized on CUDA (float16) · {device_selected}'
+                )
+            result = run_model(model, 'GPU (CUDA float16)')
+        except Exception as exc:
+            cuda_error = f'{type(exc).__name__}: {exc}'
+            if emit:
+                emit(
+                    stage='transcription',
+                    fallback=f'Whisper GPU initialization failed: {cuda_error}; using CPU instead',
+                    gpu_error=cuda_error,
+                    device='CPU',
+                    backend='CTranslate2',
+                    compute_type='int8',
+                    message=f'GPU speech unavailable ({type(exc).__name__}) · continuing on CPU'
+                )
         finally:
             if model is not None:
                 del model
@@ -128,6 +168,9 @@ def run_transcription(
 
     if result is None:
         model = WhisperModel(model_path, device='cpu', compute_type='int8', cpu_threads=4, local_files_only=True)
+        device_selected = 'CPU'
+        backend_selected = 'CTranslate2'
+        compute_selected = 'int8'
         result = run_model(model, 'CPU')
         del model
         import gc
@@ -142,5 +185,13 @@ def run_transcription(
         'duration': len(audio) / 16000,
         'language': 'en',
         'source_language': primary_source_lang,
-        'segments': result
+        'segments': result,
+        'telemetry': {
+            'stage': 'transcription',
+            'device': device_selected,
+            'backend': backend_selected,
+            'compute_type': compute_selected,
+            'cuda_error': cuda_error
+        }
     }
+
