@@ -49,12 +49,19 @@ pasted-transcript.txt
 transcript.txt
 Pasted text.txt
 
-# Binary Installers & Compressed Archives
+# Binary Installers, Compressed Archives & Release Artifacts
 *.exe
 *.msi
 *.zip
 *.7z
+*.7z.*
 *.tar.gz
+*.blockmap
+release/win-unpacked/
+release/builder-debug.yml
+release/latest.yml
+release/*.nsis.7z
+release/*.__uninstaller.exe
 
 # Python Bytecode, Caches & Virtual Environments
 __pycache__/
