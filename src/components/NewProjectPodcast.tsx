@@ -165,11 +165,11 @@ export function NewProjectPodcast({ ready, busy, settings, onCreate, pick }: New
         ) : (
           <button
             className="primary full"
-            disabled={!value || busy}
+            disabled={!value.trim() || busy}
             onClick={() =>
               onCreate({
                 kind,
-                value,
+                value: value.trim(),
                 name: name.trim() || undefined,
                 pastedTranscript: transcript.trim() ? transcript : undefined,
               })

@@ -318,7 +318,7 @@ export class Service {
           await fs.copyFile(reel.file, partial, 1);
           const expected = await hash(reel.file);
           if (expected !== (await hash(partial))) throw new Error('Saved copy did not match. Your internal Reel is safe.');
-          await probe(this.runtime, partial);
+          await probe(this.runtime, partial, undefined, 2.0);
           await fs.copyFile(partial, target, 1);
           if (expected !== (await hash(target))) throw new Error('Saved file verification failed. Your internal Reel is safe.');
           await fs.unlink(partial);
