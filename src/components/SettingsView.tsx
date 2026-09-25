@@ -40,8 +40,10 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
       const report = await window.reelmind?.gpuDiagnostics?.();
       const telem = await window.reelmind?.gpuTelemetry?.();
       if (report) setDiagnostics(report);
-      if (telem) setTelemetry(telem);
-    } catch {}
+      setTelemetry(telem ?? null);
+    } catch {
+      setTelemetry(null);
+    }
     setLoadingDiag(false);
     setDiagOpen(true);
   };
@@ -80,7 +82,7 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
             onClick={loadDiagnostics}
             disabled={loadingDiag}
           >
-            {loadingDiag ? 'Probing GPU…' : (diagOpen ? 'Refresh Diagnostics' : 'Inspect RTX 3050')}
+            {loadingDiag ? 'Probing GPU…' : (diagOpen ? 'Refresh Diagnostics' : 'Inspect GPU Diagnostics')}
           </button>
         </div>
 
@@ -97,13 +99,17 @@ export function SettingsView({ data, busy, save, setup }: SettingsViewProps) {
               </button>
             </div>
             <pre style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{diagnostics}</pre>
-            {telemetry && (
+            {telemetry ? (
               <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #3f3f46', color: '#93c5fd', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <span>GPU: {telemetry.gpuUtilPct}%</span>
                 <span>NVENC: {telemetry.encoderUtilPct}%</span>
                 <span>NVDEC: {telemetry.decoderUtilPct}%</span>
                 <span>VRAM: {telemetry.vramUsedMb} MB / {telemetry.vramTotalMb} MB</span>
                 <span>Temp: {telemetry.temperatureC}°C</span>
+              </div>
+            ) : (
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #3f3f46', color: '#a1a1aa', fontSize: '11px' }}>
+                Real-time GPU telemetry unavailable
               </div>
             )}
           </div>
