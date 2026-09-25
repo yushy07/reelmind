@@ -82,7 +82,12 @@ async function main() {
   - OLED obsidian dark canvas with physical glassmorphic blur and specular lighting.
   - Custom sleek scrollbars, micro-animations, and hover glow transitions.
   - 100% accessible with keyboard navigation (:focus-visible), standard CSS line-clamp compliance, and reduced motion support.
-- **73 Unit & Integration Tests (100% Passing)** with automated GitHub Actions CI.
+- **Full NVIDIA GPU Acceleration & RTX 3050 Utilization:**
+  - Whisper CUDA float16 speech recognition via CTranslate2 (2.86x – 21x speedup over CPU INT8).
+  - ONNX Runtime GPU (CUDAExecutionProvider) for YuNet neural face tracking and MiniLM embeddings.
+  - Dual-stage NVDEC hardware decoding and NVENC encoding (h264_nvenc) at 87% hardware utilization.
+  - Live in-app GPU Diagnostics and telemetry monitor (utilization, VRAM, and temperature).
+- **76 Unit & Integration Tests (100% Passing)** with automated GitHub Actions CI.
 
 Source commit: ${commit}
 

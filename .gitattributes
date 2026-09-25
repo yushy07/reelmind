@@ -1,5 +1,25 @@
 * text=auto
 *.sh text eol=lf
 .githooks/* text eol=lf
+
+# Binary media and assets
 *.png binary
 *.ico binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.mp4 binary
+*.mkv binary
+*.mov binary
+*.avi binary
+*.sqlite binary
+*.sqlite-wal binary
+*.sqlite-shm binary
+
+# Vector graphics and configs
+*.svg text
+*.json text
+*.yml text
+*.yaml text
+*.md text
+

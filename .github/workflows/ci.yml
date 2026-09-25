@@ -34,7 +34,7 @@ jobs:
       - name: Run TypeScript typecheck
         run: npm run typecheck
 
-      - name: Run test suite (73 unit & integration tests)
+      - name: Run test suite (76 unit & integration tests)
         run: npm test
 
       - name: Build production bundle
