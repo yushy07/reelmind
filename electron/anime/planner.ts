@@ -79,20 +79,37 @@ export function planAnimeEdit(
   musicMap: MusicMap,
   allShots: AnimeShot[] = [],
   fps: 30 = 30,
-  aspectRatio: '9:16' | '16:9' | '1:1' = '9:16'
+  aspectRatio: '9:16' | '16:9' | '1:1' = '9:16',
+  overrideOptions?: { musicOffset?: number; musicRegionId?: string }
 ): AnimeEditPlan {
   const bpm = musicMap.bpm || 135;
   const beatDuration = 60.0 / bpm;
 
-  // Stagger music starting section across concepts (e.g. 15s per concept)
-  // so each of the 3-5 rendered AMVs has a distinct musical portion
   const musicDuration = musicMap.duration || 180;
-  const slotIndex = Math.max(0, (concept.id - 1) % 5);
-  // Enforce minimum 25-second duration when sufficient footage is available
   const totalAvailableShotsDuration = allShots.reduce((acc, s) => acc + s.duration, 0);
-  const slotDuration = totalAvailableShotsDuration >= 25.0 ? 28.0 : Math.max(12.0, Math.min(25.0, totalAvailableShotsDuration || 18.0));
-  let musicOffset = Math.min(musicDuration - slotDuration - 2.0, slotIndex * 22.0 + 8.0);
-  if (musicOffset < 0) musicOffset = 0;
+
+  // If a region was assigned by the music matching engine, align edit directly to that musical section
+  const assignedRegion = overrideOptions?.musicRegionId
+    ? (musicMap.regions || []).find(r => r.id === overrideOptions.musicRegionId) || concept.assignedMusicRegion
+    : concept.assignedMusicRegion;
+
+  let slotDuration = totalAvailableShotsDuration >= 25.0 ? 28.0 : Math.max(12.0, Math.min(25.0, totalAvailableShotsDuration || 18.0));
+  let musicOffset = 0;
+
+  if (overrideOptions?.musicOffset !== undefined) {
+    musicOffset = Math.max(0, Math.min(musicDuration - slotDuration, overrideOptions.musicOffset));
+  } else if (assignedRegion) {
+    musicOffset = assignedRegion.start;
+    slotDuration = Math.min(totalAvailableShotsDuration >= 25.0 ? 32.0 : 25.0, Math.max(25.0, assignedRegion.duration));
+    if (musicOffset + slotDuration > musicDuration) {
+      musicOffset = Math.max(0, musicDuration - slotDuration);
+    }
+  } else {
+    // Stagger music starting section across concepts as fallback
+    const slotIndex = Math.max(0, (concept.id - 1) % 5);
+    musicOffset = Math.min(musicDuration - slotDuration - 2.0, slotIndex * 22.0 + 8.0);
+    if (musicOffset < 0) musicOffset = 0;
+  }
 
   // Find a strong beat or climax drop in this musical segment
   const beats = getMusicBeats(musicMap, musicOffset, slotDuration);
@@ -282,7 +299,9 @@ export function planAnimeEdit(
     audio: {
       sourceAudioMix,
       musicMix,
-      musicOffset: Math.round(musicOffset * 100) / 100
+      musicOffset: Math.round(musicOffset * 100) / 100,
+      musicDuration: Math.round(slotDuration * 100) / 100,
+      musicRegionId: assignedRegion?.id
     }
   };
 }

@@ -5,6 +5,7 @@ import { DAY } from '../core';
 import { run } from '../process';
 import { probe } from '../media';
 import { selectAnimeMoments } from '../anime/selection';
+import { matchMusicRegionsToConcepts } from '../anime/matching';
 import { planAnimeEdit } from '../anime/planner';
 import { renderAnimeAMV } from '../anime/renderer';
 import type {
@@ -199,7 +200,7 @@ export class AnimePipeline {
         conceptsFile,
         (d) => Array.isArray(d) && d.length >= 1,
         async () => {
-          return selectAnimeMoments(
+          const selected = await selectAnimeMoments(
             candidates,
             musicMap,
             this.ctx.store.settings(),
@@ -207,8 +208,17 @@ export class AnimePipeline {
             signal,
             (message) => this.ctx.update(job, { message, provider: message.startsWith('Gemini') ? 'Gemini' : job.provider })
           );
+          // Match distinct, non-overlapping candidate music regions to each concept
+          const assignments = matchMusicRegionsToConcepts(selected, musicMap);
+          for (const c of selected) {
+            const assigned = assignments.get(c.id);
+            if (assigned) {
+              c.assignedMusicRegion = assigned;
+            }
+          }
+          return selected;
         },
-        this.ctx.checkpoints.fingerprint({ candidates: await hash(candidatesFile), v: 1 })
+        this.ctx.checkpoints.fingerprint({ candidates: await hash(candidatesFile), music: await hash(musicMapFile), v: 2 })
       );
       const aspect = job.input.outputAspect || '9:16';
       phase('rendering', 92, `Rendering ${concepts.length} ${aspect} AMVs`);
@@ -278,6 +288,8 @@ export class AnimePipeline {
         shotCount: shots.length,
         dialogueCount: transcript.segments.length,
         musicBpm: musicMap.bpm,
+        musicSectionsCount: musicMap.sections?.length || 0,
+        musicRegionsCount: musicMap.regions?.length || 0,
         candidatesCount: candidates.length,
         candidates: candidates.slice(0, 30),
         conceptsCount: concepts.length,
@@ -295,12 +307,15 @@ export class AnimePipeline {
       this.ctx.update(job, {
         stage: 'completed',
         progress: 100,
-        message: `${job.outputs.length} AMV Edits ready to save (${musicMap.bpm} BPM)`,
+        message: `${job.outputs.length} AMV Edits ready to save (${musicMap.bpm} BPM · ${musicMap.sections?.length || 0} sections)`,
         cleanupAt: this.ctx.store.now() + DAY,
         animeAnalysis: {
           shotCount: shots.length,
           bpm: musicMap.bpm,
           beatsCount: musicMap.beats.length,
+          musicSectionsCount: musicMap.sections?.length || 0,
+          musicRegionsCount: musicMap.regions?.length || 0,
+          musicRegions: musicMap.regions || [],
           language: lang,
           candidatesCount: candidates.length,
           candidates: candidates.slice(0, 30),
@@ -353,7 +368,10 @@ export class AnimePipeline {
       }
     }
     const aspect = options.aspectRatio || job.input.outputAspect || '9:16';
-    const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect);
+    const plan = planAnimeEdit(concept, musicMap, shots, 30, aspect, {
+      musicOffset: options.musicOffset,
+      musicRegionId: options.musicRegionId
+    });
     plan.renderQuality = this.ctx.store.settings().quality;
     if (options.sourceAudioMix !== undefined) {
       plan.audio.sourceAudioMix = Math.max(0, Math.min(1, options.sourceAudioMix));

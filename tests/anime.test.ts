@@ -16,6 +16,7 @@ import {
   selectAnimeMoments,
   type AnimeEvaluationItem
 } from '../electron/anime/selection';
+import { matchMusicRegionsToConcepts } from '../electron/anime/matching';
 import { planAnimeEdit } from '../electron/anime/planner';
 import { buildAnimeFilterGraph, renderAnimeAMV } from '../electron/anime/renderer';
 import { probe } from '../electron/media';
@@ -40,11 +41,19 @@ test('anime data structures conform to analysis database contract', () => {
   ];
 
   const sampleMusic: MusicMap = {
+    version: 2,
     duration: 180.5,
     bpm: 142.0,
     beats: [0.42, 0.84, 1.26, 1.68],
+    downbeats: [0.42, 1.68],
     strongBeats: [0.84, 1.68],
-    energySections: [{ start: 0, end: 2, energy: 0.45 }]
+    sections: [
+      { start: 0, end: 180.5, duration: 180.5, energy: 0.45, peakEnergy: 0.7, onsetDensity: 0.4, beatCount: 4, downbeatCount: 2, label: 'verse', confidence: 0.85 }
+    ],
+    energySections: [{ start: 0, end: 2, energy: 0.45 }],
+    onsetTimes: [0.42, 0.84, 1.26, 1.68],
+    regions: [],
+    analyzer: 'AllInOne-MSAF-Librosa-Fused-v2'
   };
 
   const sampleAnalysis: AnimeEpisodeAnalysis = {
@@ -412,11 +421,17 @@ function createMockCandidates(count = 20): AnimeCandidate[] {
 test('buildGeminiEvaluationPrompt produces compact prompt bounded to 24 candidates and includes BPM', () => {
   const candidates = createMockCandidates(30);
   const musicMap: MusicMap = {
+    version: 2,
     duration: 120,
     bpm: 148,
     beats: [0.5, 1.0],
+    downbeats: [0.5],
     strongBeats: [1.0],
-    energySections: [{ start: 0, end: 120, energy: 0.7 }]
+    sections: [],
+    energySections: [{ start: 0, end: 120, energy: 0.7 }],
+    onsetTimes: [],
+    regions: [],
+    analyzer: 'test'
   };
 
   const prompt = buildGeminiEvaluationPrompt(candidates, musicMap);
@@ -555,7 +570,19 @@ test('selectDiverseConcepts incorporates Gemini evaluation quality scores and cu
 
 test('selectAnimeMoments handles cloud disabled, Gemini quota 429, and API success gracefully', async () => {
   const candidates = createMockCandidates(16);
-  const musicMap: MusicMap = { duration: 60, bpm: 135, beats: [], strongBeats: [], energySections: [] };
+  const musicMap: MusicMap = {
+    version: 2,
+    duration: 60,
+    bpm: 135,
+    beats: [],
+    downbeats: [],
+    strongBeats: [],
+    sections: [],
+    energySections: [],
+    onsetTimes: [],
+    regions: [],
+    analyzer: 'test'
+  };
   const logs: string[] = [];
   const report = (msg: string) => logs.push(msg);
 
@@ -711,11 +738,17 @@ test('planAnimeEdit creates structured 9:16 AMV plan with beat-aligned cuts and 
   ];
 
   const musicMap: MusicMap = {
+    version: 2,
     duration: 180,
     bpm: 140,
     beats: [10.0, 10.43, 10.86, 11.29, 11.71, 12.14, 12.57, 13.0, 13.43, 13.86, 14.29, 14.71, 15.14],
+    downbeats: [10.0, 11.71, 13.43, 15.14],
     strongBeats: [14.29],
-    energySections: [{ start: 0, end: 180, energy: 0.8 }]
+    sections: [],
+    energySections: [{ start: 0, end: 180, energy: 0.8 }],
+    onsetTimes: [],
+    regions: [],
+    analyzer: 'test'
   };
 
   const plan = planAnimeEdit(concept, musicMap, sampleShots, 30);
@@ -754,11 +787,17 @@ test('planAnimeEdit creates structured 9:16 AMV plan with beat-aligned cuts and 
 
 test('planAnimeEdit assigns distinct music offsets and style effects for diverse concepts', () => {
   const musicMap: MusicMap = {
+    version: 2,
     duration: 180,
     bpm: 130,
     beats: [5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0],
+    downbeats: [5.0, 25.0, 45.0, 65.0],
     strongBeats: [15.0, 35.0, 55.0, 75.0],
-    energySections: []
+    sections: [],
+    energySections: [],
+    onsetTimes: [],
+    regions: [],
+    analyzer: 'test'
   };
 
   const sampleShots: AnimeShot[] = [
@@ -840,6 +879,79 @@ test('planAnimeEdit assigns distinct music offsets and style effects for diverse
   // Velocity ramp should include velocity_ramp effect
   const hasVelocity = plan3.cuts.some(c => c.effect === 'velocity_ramp');
   assert.ok(hasVelocity);
+});
+
+test('matchMusicRegionsToConcepts assigns distinct non-overlapping music regions across multiple clips', () => {
+  const musicMap: MusicMap = {
+    version: 2,
+    duration: 180,
+    bpm: 140,
+    beats: [0.5, 1.0, 1.5, 2.0],
+    downbeats: [0.5, 2.0],
+    strongBeats: [0.5],
+    sections: [
+      { start: 0, end: 30, duration: 30, energy: 0.35, peakEnergy: 0.5, onsetDensity: 0.3, beatCount: 60, downbeatCount: 15, label: 'verse', confidence: 0.85 },
+      { start: 30, end: 75, duration: 45, energy: 0.88, peakEnergy: 0.95, onsetDensity: 0.8, beatCount: 90, downbeatCount: 22, label: 'chorus', confidence: 0.92 },
+      { start: 75, end: 120, duration: 45, energy: 0.25, peakEnergy: 0.4, onsetDensity: 0.2, beatCount: 90, downbeatCount: 22, label: 'break', confidence: 0.80 },
+      { start: 120, end: 180, duration: 60, energy: 0.92, peakEnergy: 0.98, onsetDensity: 0.85, beatCount: 120, downbeatCount: 30, label: 'climax', confidence: 0.90 }
+    ],
+    onsetTimes: [],
+    regions: [
+      { id: 'reg_verse_01', start: 0.0, end: 28.0, duration: 28.0, sectionLabel: 'verse', energy: 0.35, peakEnergy: 0.5, onsetDensity: 0.3, beatCount: 56, downbeatCount: 14, qualityScore: 0.82, beatAlignedStart: true, downbeatAlignedStart: true, beatAlignedEnd: true },
+      { id: 'reg_chorus_01', start: 32.0, end: 60.0, duration: 28.0, sectionLabel: 'chorus', energy: 0.88, peakEnergy: 0.95, onsetDensity: 0.8, beatCount: 56, downbeatCount: 14, qualityScore: 0.94, beatAlignedStart: true, downbeatAlignedStart: true, beatAlignedEnd: true },
+      { id: 'reg_break_01', start: 78.0, end: 106.0, duration: 28.0, sectionLabel: 'break', energy: 0.25, peakEnergy: 0.4, onsetDensity: 0.2, beatCount: 56, downbeatCount: 14, qualityScore: 0.80, beatAlignedStart: true, downbeatAlignedStart: true, beatAlignedEnd: true },
+      { id: 'reg_climax_01', start: 122.0, end: 150.0, duration: 28.0, sectionLabel: 'climax', energy: 0.92, peakEnergy: 0.98, onsetDensity: 0.85, beatCount: 56, downbeatCount: 14, qualityScore: 0.96, beatAlignedStart: true, downbeatAlignedStart: true, beatAlignedEnd: true }
+    ],
+    analyzer: 'AllInOne-MSAF-Librosa-Fused-v2'
+  };
+
+  const concepts: AnimeEditConcept[] = [
+    { id: 1, shotId: 10, start: 0, end: 10, duration: 10, impactTime: 5, category: 'action', style: 'hard_beat_drop', title: 'Action Clip', description: '', narrativeImportance: 'high', qualityScore: 92, motionScore: 0.9, faceScore: 0.1, transientScore: 0.8, hasDialogue: false },
+    { id: 2, shotId: 20, start: 10, end: 20, duration: 10, impactTime: 15, category: 'emotional', style: 'slow_burn', title: 'Emotional Clip', description: '', narrativeImportance: 'medium', qualityScore: 88, motionScore: 0.2, faceScore: 0.8, transientScore: 0.3, hasDialogue: false },
+    { id: 3, shotId: 30, start: 20, end: 30, duration: 10, impactTime: 25, category: 'cinematic', style: 'velocity_ramp', title: 'Cinematic Clip', description: '', narrativeImportance: 'high', qualityScore: 90, motionScore: 0.7, faceScore: 0.4, transientScore: 0.6, hasDialogue: false },
+    { id: 4, shotId: 40, start: 30, end: 40, duration: 10, impactTime: 35, category: 'dialogue', style: 'dialogue_pause', title: 'Dialogue Clip', description: '', narrativeImportance: 'medium', qualityScore: 85, motionScore: 0.3, faceScore: 0.7, transientScore: 0.3, hasDialogue: true, dialogueText: 'Believe in tomorrow' }
+  ];
+
+  const assignments = matchMusicRegionsToConcepts(concepts, musicMap);
+  assert.equal(assignments.size, 4);
+
+  const reg1 = assignments.get(1)!;
+  const reg2 = assignments.get(2)!;
+  const reg3 = assignments.get(3)!;
+  const reg4 = assignments.get(4)!;
+
+  // Verify unique region assignment
+  const assignedIds = new Set([reg1.id, reg2.id, reg3.id, reg4.id]);
+  assert.equal(assignedIds.size, 4, 'All 4 clips must receive genuinely distinct music regions');
+
+  // Verify Action received high-energy chorus/climax
+  assert.ok(reg1.sectionLabel === 'chorus' || reg1.sectionLabel === 'climax');
+  // Verify Emotional received calm break/verse
+  assert.ok(reg2.sectionLabel === 'break' || reg2.sectionLabel === 'verse');
+
+  // Verify planAnimeEdit uses assigned region directly
+  const sampleShots: AnimeShot[] = [
+    { id: 10, start: 0, end: 10, duration: 10 },
+    { id: 20, start: 10, end: 20, duration: 10 },
+    { id: 30, start: 20, end: 30, duration: 10 },
+    { id: 40, start: 30, end: 40, duration: 10 }
+  ];
+
+  concepts[0].assignedMusicRegion = reg1;
+  concepts[1].assignedMusicRegion = reg2;
+
+  const planAction = planAnimeEdit(concepts[0], musicMap, sampleShots);
+  const planEmotional = planAnimeEdit(concepts[1], musicMap, sampleShots);
+
+  assert.equal(planAction.audio.musicOffset, reg1.start);
+  assert.equal(planEmotional.audio.musicOffset, reg2.start);
+  assert.notEqual(planAction.audio.musicOffset, planEmotional.audio.musicOffset);
+
+  // Test manual override support in planAnimeEdit
+  const overriddenPlan = planAnimeEdit(concepts[0], musicMap, sampleShots, 30, '9:16', {
+    musicOffset: 99.5
+  });
+  assert.equal(overriddenPlan.audio.musicOffset, 99.5);
 });
 
 test('buildAnimeFilterGraph produces valid FFmpeg filter graph string for vertical 9:16 AMV', () => {

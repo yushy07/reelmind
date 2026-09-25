@@ -81,7 +81,18 @@ def detect_scenes(args):
     save(args.output, shots)
 
 def analyze_music(args):
-    """Analyze music audio using Librosa: BPM, beats, onsets, and energy curve."""
+    """Analyze music audio using Adaptive Music Intelligence:
+
+    BPM, beat grid, downbeats, Foote checkerboard novelty, structural sections, and candidate regions.
+    """
+    try:
+        from music_service import analyze_music_intelligence
+        result = analyze_music_intelligence(args.input, emit_fn=emit)
+        save(args.output, result)
+        return
+    except Exception as exc:
+        print(f"Adaptive music intelligence error: {exc}, running fallback analysis", file=sys.stderr)
+
     import numpy as np  # type: ignore
     import librosa  # type: ignore
 
@@ -136,15 +147,49 @@ def analyze_music(args):
                 if float(onset_env[f]) >= thresh and idx < len(beat_times):
                     strong_beats.append(beat_times[idx])
 
+    downbeats = beat_times[::4] if len(beat_times) >= 4 else beat_times[:]
+    default_sections = [{
+        'start': 0.0,
+        'end': round(duration, 3),
+        'duration': round(duration, 3),
+        'energy': 0.5,
+        'peakEnergy': 0.7,
+        'onsetDensity': 0.5,
+        'beatCount': len(beat_times),
+        'downbeatCount': len(downbeats),
+        'label': 'verse',
+        'confidence': 0.75
+    }]
+    regions = [{
+        'id': 'reg_01',
+        'start': 0.0,
+        'end': min(28.0, round(duration, 3)),
+        'duration': min(28.0, round(duration, 3)),
+        'sectionLabel': 'verse',
+        'energy': 0.5,
+        'peakEnergy': 0.7,
+        'onsetDensity': 0.5,
+        'beatCount': len([b for b in beat_times if b <= 28.0]),
+        'downbeatCount': len([d for d in downbeats if d <= 28.0]),
+        'qualityScore': 0.8,
+        'beatAlignedStart': True,
+        'downbeatAlignedStart': True,
+        'beatAlignedEnd': True
+    }]
+
     result = {
+        'version': 2,
         'duration': round(duration, 3),
         'bpm': tempo_val,
         'beats': beat_times,
-        'strong_beats': strong_beats,
-        'energy_sections': energy_sections,
-        'onset_times': onset_times[:500]  # Cap to first 500 for compact JSON
+        'downbeats': downbeats,
+        'strongBeats': strong_beats,
+        'sections': default_sections,
+        'energySections': energy_sections,
+        'onsetTimes': onset_times[:500],
+        'regions': regions,
+        'analyzer': 'Librosa-Fallback'
     }
-
 
     emit(progress=1.0, message=f'Music mapped · {tempo_val} BPM with {len(beat_times)} beats')
     save(args.output, result)
@@ -180,14 +225,6 @@ def get_face_detector(models_dir=None, gpu=False):
         cv2_any: Any = cv2
         model_path = Path(models_dir) / 'face.onnx'
         if model_path.exists():
-            if gpu:
-                try:
-                    from shared.gpu import FaceDetectorCUDA
-                    fdet = FaceDetectorCUDA(str(model_path), gpu=True, score_threshold=0.35, nms_threshold=0.3)
-                    if getattr(fdet, 'active_provider', '') == 'CUDAExecutionProvider':
-                        return ('yunet_cuda', fdet)
-                except Exception:
-                    pass
             try:
                 detector = cv2_any.FaceDetectorYN.create(str(model_path), '', (320, 180), 0.35, 0.3, 10)
                 return ('yunet', detector)
@@ -220,6 +257,7 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, gpu=False, emi
         sample_interval_sec = 0.25
         sample_step_frames = max(1, int(fps * sample_interval_sec))
 
+        curr_frame = -1
         for shot_idx, shot in enumerate(shots):
             start_sec = shot['start']
             end_sec = shot['end']
@@ -256,8 +294,17 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, gpu=False, emi
                 face_check_frames.add(frame_indices[0])
 
             for f_idx in frame_indices:
-                cap.set(cv2_any.CAP_PROP_POS_FRAMES, f_idx)
-                ret, frame = cap.read()
+                if curr_frame >= 0 and curr_frame <= f_idx and (f_idx - curr_frame) <= 60:
+                    while curr_frame < f_idx:
+                        cap.grab()
+                        curr_frame += 1
+                    ret, frame = cap.retrieve()
+                    curr_frame += 1
+                else:
+                    cap.set(cv2_any.CAP_PROP_POS_FRAMES, f_idx)
+                    ret, frame = cap.read()
+                    curr_frame = f_idx + 1
+
                 if not ret or frame is None:
                     continue
 
@@ -335,7 +382,7 @@ def analyze_motion_and_faces(source_path, shots, models_dir=None, gpu=False, emi
 
             if emit and (shot_idx % 10 == 0 or shot_idx == num_shots - 1):
                 pct = 0.05 + 0.50 * ((shot_idx + 1) / num_shots)
-                accel = 'GPU CUDA' if det_type == 'yunet_cuda' else 'CPU'
+                accel = 'GPU CUDA' if det_type == 'yunet_cuda' else ('OpenCV YuNet' if det_type == 'yunet' else 'CPU')
                 emit(progress=round(pct, 2), message=f'Analyzing motion and character faces · Shot {shot_idx + 1}/{num_shots} ({accel})', stage='candidate_scoring', device=accel)
 
     finally:

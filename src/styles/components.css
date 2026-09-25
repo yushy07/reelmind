@@ -924,6 +924,43 @@ footer span { margin-left: auto; font-weight: 700; letter-spacing: 0.08em; color
 .icon-inline-sm { display: inline; margin-right: 4px; vertical-align: middle; }
 .waveform-bar { height: var(--h, 14px); }
 
+.concept-music-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-wash);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-glass-subtle);
+  margin-top: 4px;
+  display: inline-block;
+  font-weight: 600;
+}
+
+.music-region-select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--lab-rule-strong);
+  background: var(--bg-surface-elevated, #ffffff);
+  color: var(--lab-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.music-region-select:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.music-region-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
+
 /* Reduced Motion Preference Accessibility */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

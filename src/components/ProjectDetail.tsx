@@ -180,7 +180,9 @@ export function ProjectDetail({
             </div>
             <div className="stat-box">
               <strong>{job.animeAnalysis.bpm} BPM</strong>
-              <small>Music Tempo</small>
+              <small>
+                {job.animeAnalysis.musicSectionsCount ? `${job.animeAnalysis.musicSectionsCount} Sections · ${job.animeAnalysis.musicRegionsCount || 0} Regions` : 'Music Tempo'}
+              </small>
             </div>
             <div className="stat-box">
               <strong>
@@ -195,7 +197,7 @@ export function ProjectDetail({
             <div className="concepts-section">
               <div className="candidate-heading">
                 <h4>Selected AMV Edit Concepts ({job.animeAnalysis.concepts.length} Ready)</h4>
-                <small>Diverse concepts optimized for 9:16 vertical AMV edits</small>
+                <small>Diverse concepts with unique musical section assignments</small>
               </div>
               <div className="concepts-grid">
                 {job.animeAnalysis.concepts.map((c) => (
@@ -210,6 +212,11 @@ export function ProjectDetail({
                     </div>
                     <strong>{c.title}</strong>
                     <p>{c.description}</p>
+                    {c.assignedMusicRegion && (
+                      <div className="concept-music-pill">
+                        🎵 Music: {c.assignedMusicRegion.start}s–{c.assignedMusicRegion.end}s ({c.assignedMusicRegion.sectionLabel.toUpperCase()} · {Math.round(c.assignedMusicRegion.energy * 100)}% energy)
+                      </div>
+                    )}
                     <div className="concept-footer">
                       <span>
                         {c.duration}s Cut (Impact @ {c.impactTime}s)

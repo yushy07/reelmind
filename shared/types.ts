@@ -25,21 +25,59 @@ export interface AnimeShot {
   impactTime?: number;
 }
 
+export type MusicSectionLabel =
+  | 'intro'
+  | 'verse'
+  | 'chorus'
+  | 'drop'
+  | 'break'
+  | 'bridge'
+  | 'outro'
+  | 'climax'
+  | 'ambient';
+
 export interface MusicSection {
   start: number;
   end: number;
+  duration: number;
   energy: number;
-  label?: string;
+  peakEnergy: number;
+  onsetDensity: number;
+  beatCount: number;
+  downbeatCount: number;
+  label: MusicSectionLabel;
+  confidence: number;
+}
+
+export interface MusicRegion {
+  id: string;
+  start: number;
+  end: number;
+  duration: number;
+  sectionLabel: MusicSectionLabel;
+  energy: number;
+  peakEnergy: number;
+  onsetDensity: number;
+  beatCount: number;
+  downbeatCount: number;
+  qualityScore: number;
+  beatAlignedStart: boolean;
+  downbeatAlignedStart: boolean;
+  beatAlignedEnd: boolean;
 }
 
 export interface MusicMap {
+  version: 2;
   duration: number;
   bpm: number;
   beats: number[];
-  downbeats?: number[];
-  strongBeats?: number[];
-  energySections?: MusicSection[];
-  onsetTimes?: number[];
+  downbeats: number[];
+  strongBeats: number[];
+  sections: MusicSection[];
+  energySections?: { start: number; end: number; energy: number; label?: string }[];
+  onsetTimes: number[];
+  regions: MusicRegion[];
+  analyzer: string;
 }
 
 export interface AnimeEpisodeMetadata {
@@ -94,6 +132,7 @@ export interface AnimeEditConcept {
   transientScore: number;
   hasDialogue: boolean;
   dialogueText?: string;
+  assignedMusicRegion?: MusicRegion;
 }
 
 export interface AnimeShotCut {
@@ -129,6 +168,8 @@ export interface AnimeEditPlan {
     sourceAudioMix: number;
     musicMix: number;
     musicOffset: number;
+    musicDuration?: number;
+    musicRegionId?: string;
   };
 }
 
@@ -137,6 +178,8 @@ export interface AnimeRerenderOptions {
   sourceAudioMix?: number;
   musicMix?: number;
   aspectRatio?: '9:16' | '16:9' | '1:1';
+  musicOffset?: number;
+  musicRegionId?: string;
 }
 
 export interface AnimeEpisodeAnalysis {
@@ -146,6 +189,8 @@ export interface AnimeEpisodeAnalysis {
   shotCount: number;
   dialogueCount: number;
   musicBpm?: number;
+  musicSectionsCount?: number;
+  musicRegionsCount?: number;
   candidatesCount?: number;
   candidates?: AnimeCandidate[];
   conceptsCount?: number;
@@ -189,6 +234,9 @@ export interface Job {
     shotCount?: number;
     bpm?: number;
     beatsCount?: number;
+    musicSectionsCount?: number;
+    musicRegionsCount?: number;
+    musicRegions?: MusicRegion[];
     language?: AnimeLanguage;
     candidatesCount?: number;
     candidates?: AnimeCandidate[];

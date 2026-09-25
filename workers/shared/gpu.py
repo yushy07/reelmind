@@ -333,8 +333,8 @@ def get_full_diagnostics(runtime_models_dir: Optional[str] = None) -> Dict[str, 
 
 
 class FaceDetectorCUDA:
-    """High-performance ONNX Runtime Face Detector utilizing CUDAExecutionProvider
-    with transparent CPU fallback for OpenCV YuNet (face.onnx).
+    """High-performance Face Detector utilizing OpenCV YuNet (face.onnx)
+    with optimized native C++ execution and clean resource management.
     """
 
     def __init__(self, model_path: str, gpu: bool = True, score_threshold: float = 0.35, nms_threshold: float = 0.3):
@@ -344,7 +344,6 @@ class FaceDetectorCUDA:
         self.nms_threshold = nms_threshold
         self.target_size = (320, 180)
         self.active_provider = 'CPUExecutionProvider'
-        self.session = None
 
         import cv2  # type: ignore
         self._cv2_detector = None
@@ -354,19 +353,6 @@ class FaceDetectorCUDA:
             )
         except Exception:
             pass
-
-        import onnxruntime as ort  # type: ignore
-        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if gpu else ['CPUExecutionProvider']
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 4
-        opts.log_severity_level = 3  # Suppress internal warnings
-
-        try:
-            self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=providers)
-            self.active_provider = self.session.get_providers()[0]
-        except Exception:
-            self.session = ort.InferenceSession(self.model_path, sess_options=opts, providers=['CPUExecutionProvider'])
-            self.active_provider = 'CPUExecutionProvider'
 
     def setInputSize(self, size: Tuple[int, int]):
         self.target_size = size
@@ -378,16 +364,6 @@ class FaceDetectorCUDA:
 
     def detect(self, image) -> Tuple[int, Any]:
         """Runs face detection on an OpenCV BGR image and returns YuNet-compatible format."""
-        import cv2  # type: ignore
-
-        if self.session is not None and self.active_provider == 'CUDAExecutionProvider':
-            try:
-                blob = cv2.dnn.blobFromImage(image, scalefactor=1.0, size=(640, 640), mean=(0, 0, 0), swapRB=False, crop=False)
-                input_name = self.session.get_inputs()[0].name
-                _ = self.session.run(None, {input_name: blob})
-            except Exception:
-                pass
-
         if self._cv2_detector is not None:
             h, w = image.shape[:2]
             self._cv2_detector.setInputSize((w, h))

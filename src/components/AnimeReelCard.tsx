@@ -19,7 +19,10 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
   const [aspect, setAspect] = useState<'9:16' | '1:1' | '16:9'>(job.input.outputAspect || '9:16');
   const [sourceAudio, setSourceAudio] = useState(40);
   const [music, setMusic] = useState(100);
+  const [selectedRegionId, setSelectedRegionId] = useState<string>('auto');
   const [localBusy, setLocalBusy] = useState(false);
+
+  const availableRegions = job.animeAnalysis?.musicRegions || [];
 
   const handleRerender = async () => {
     if (localBusy || busy) return;
@@ -30,6 +33,7 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
         sourceAudioMix: sourceAudio / 100,
         musicMix: music / 100,
         aspectRatio: aspect,
+        musicRegionId: selectedRegionId !== 'auto' ? selectedRegionId : undefined
       });
     } finally {
       setLocalBusy(false);
@@ -175,6 +179,39 @@ export function AnimeReelCard({ job, reel, index, busy, onRerender, onSave }: An
                 />
               </label>
             </div>
+          </div>
+
+          <div className="anime-control-group">
+            <div className="anime-control-header">
+              <span>Music Passage</span>
+              <small>
+                {selectedRegionId === 'auto'
+                  ? concept?.assignedMusicRegion
+                    ? `${concept.assignedMusicRegion.sectionLabel.toUpperCase()} (${concept.assignedMusicRegion.start}s–${concept.assignedMusicRegion.end}s)`
+                    : 'Auto Matched'
+                  : availableRegions.find((r) => r.id === selectedRegionId)
+                    ? `${availableRegions.find((r) => r.id === selectedRegionId)!.sectionLabel.toUpperCase()} (${availableRegions.find((r) => r.id === selectedRegionId)!.start}s–${availableRegions.find((r) => r.id === selectedRegionId)!.end}s)`
+                    : 'Custom'}
+              </small>
+            </div>
+            {availableRegions.length > 0 && (
+              <select
+                className="music-region-select"
+                value={selectedRegionId}
+                onChange={(e) => setSelectedRegionId(e.target.value)}
+                disabled={isWorking}
+                aria-label="Select Music Region"
+              >
+                <option value="auto">
+                  ⚡ Auto Matched {concept?.assignedMusicRegion ? `(${concept.assignedMusicRegion.sectionLabel.toUpperCase()} · ${concept.assignedMusicRegion.start}s–${concept.assignedMusicRegion.end}s)` : ''}
+                </option>
+                {availableRegions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.sectionLabel.toUpperCase()} · {r.start}s–{r.end}s ({r.duration}s · {Math.round(r.energy * 100)}% energy)
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <button

@@ -82,7 +82,9 @@ app.whenReady().then(async()=>{
       style:z.enum(['hard_beat_drop','slow_burn','dialogue_pause','velocity_ramp']).optional(),
       sourceAudioMix:z.number().min(0).max(1).optional(),
       musicMix:z.number().min(0).max(1).optional(),
-      aspectRatio:z.enum(['9:16','16:9','1:1']).optional()
+      aspectRatio:z.enum(['9:16','16:9','1:1']).optional(),
+      musicOffset:z.number().min(0).max(7200).optional(),
+      musicRegionId:z.string().max(64).optional()
     }).strict().parse(options||{})
   ));
   handle('action',async(id,action)=>{z.string().uuid().parse(id);z.enum(['pause','resume','delete']).parse(action);if(action==='delete'){const answer=await dialog.showMessageBox(window,{type:'warning',message:'Delete this project and any unsaved Reels?',detail:'Original videos and Reels already saved outside REELMIND will stay untouched.',buttons:['Keep project','Delete'],defaultId:0,cancelId:0});if(answer.response!==1)return;}await service.action(id,action);});

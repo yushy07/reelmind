@@ -13,3 +13,10 @@ Runtime dependency downloads are defined in `scripts/setup-runtime.ps1` and `wor
 - Bundled [paraphrase-multilingual-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2), revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`: Apache-2.0. Uses the quantized AVX2 ONNX export and tokenizer, with masked mean pooling and 128-token windows.
 - Optional [faster-whisper-large-v3-turbo](https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo), revision `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf`: MIT. Converted Whisper large-v3-turbo weights, downloaded only on request; not included in the installer.
 - ONNX Runtime and Hugging Face Tokenizers are included in the Python runtime with their upstream license metadata. Pinned file sizes and SHA-256 hashes are in `shared/model-manifest.json`.
+
+## Music Intelligence & Segmentation References
+
+- [all-in-one-infer](https://github.com/openmirlab/all-in-one-infer): MIT License. Architecture reference for music structure inference, functional segment boundaries & labeling, beat/downbeat hierarchy, and GPU/CPU adaptive pipelines.
+- [msaf](https://github.com/urinieto/msaf): MIT License (main repository). Reference for structural boundary cross-checks, Foote checkerboard novelty convolution over harmonic & timbral self-similarity matrices (SSM), and segmentation. Only MIT-licensed algorithms adapted; GPL algorithms excluded.
+- [librosa](https://github.com/librosa/librosa): ISC License. Spectral analysis, CQT/STFT chroma extraction, onset envelopes, and RMS energy dynamics.
+
