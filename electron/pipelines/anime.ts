@@ -52,8 +52,8 @@ export class AnimePipeline {
       const episodeSource = path.join(work, 'episode' + path.extname(job.input.value).toLowerCase());
       if (!await exists(episodeSource)) {
         const stat = await fs.stat(job.input.value);
-        const disk = await fs.statfs(work);
-        if (Number(disk.bavail) * Number(disk.bsize) < stat.size * 2 + 2e9) {
+        const disk = await fs.statfs(work).catch(() => null);
+        if (disk && Number(disk.bavail) * Number(disk.bsize) < stat.size * 2 + 2e9) {
           throw new Error('Not enough free disk space for episode, working files and edits.');
         }
         await fs.copyFile(job.input.value, episodeSource + '.part');

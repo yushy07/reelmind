@@ -232,18 +232,22 @@ export async function renderAnimeAMV(
   }
 
   // 4. Strict Quality Control Validation
-  const expectedW = plan.aspectRatio === '16:9' ? 1920 : 1080;
-  const expectedH = plan.aspectRatio === '16:9' ? 1080 : (plan.aspectRatio === '1:1' ? 1080 : 1920);
-  const metadata = await probe(runtime, outputMp4, signal, 1.0);
-  if (
-    metadata.width !== expectedW ||
-    metadata.height !== expectedH ||
-    metadata.videoCodec !== 'h264' ||
-    metadata.audioCodec !== 'aac' ||
-    metadata.duration < 2.0
-  ) {
-    throw new Error(
-      `Rendered AMV failed quality control: ${metadata.width}x${metadata.height}, ${metadata.videoCodec}, ${metadata.duration}s (expected ${expectedW}x${expectedH})`
-    );
+  try {
+    const expectedW = plan.aspectRatio === '16:9' ? 1920 : 1080;
+    const expectedH = plan.aspectRatio === '16:9' ? 1080 : (plan.aspectRatio === '1:1' ? 1080 : 1920);
+    const metadata = await probe(runtime, outputMp4, signal, 1.0);
+    if (
+      metadata.width !== expectedW ||
+      metadata.height !== expectedH ||
+      metadata.videoCodec !== 'h264' ||
+      metadata.audioCodec !== 'aac' ||
+      metadata.duration < 2.0
+    ) {
+      throw new Error(
+        `Rendered AMV failed quality control: ${metadata.width}x${metadata.height}, ${metadata.videoCodec}, ${metadata.duration}s (expected ${expectedW}x${expectedH})`
+      );
+    }
+  } finally {
+    await fs.unlink(graphScript).catch(() => {});
   }
 }

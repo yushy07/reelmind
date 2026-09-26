@@ -29,8 +29,8 @@ export class PodcastPipeline {
         source = path.join(work, 'source' + path.extname(job.input.value).toLowerCase());
         if (!await exists(source)) {
           const stat = await fs.stat(job.input.value);
-          const disk = await fs.statfs(work);
-          if (Number(disk.bavail) * Number(disk.bsize) < stat.size * 2 + 2e9) {
+          const disk = await fs.statfs(work).catch(() => null);
+          if (disk && Number(disk.bavail) * Number(disk.bsize) < stat.size * 2 + 2e9) {
             throw new Error('Not enough free disk space for source, working files and Reels.');
           }
           await fs.copyFile(job.input.value, source + '.part');
@@ -77,8 +77,8 @@ export class PodcastPipeline {
           throw new Error('Only public, non-live videos without DRM are supported.');
         }
         if (meta.title) this.ctx.update(job, { title: String(meta.title).slice(0, 180) });
-        const disk = await fs.statfs(work);
-        if (Number(disk.bavail) * Number(disk.bsize) < Math.max(2e9, Number(meta.filesize || meta.filesize_approx || 0) * 2)) {
+        const disk = await fs.statfs(work).catch(() => null);
+        if (disk && Number(disk.bavail) * Number(disk.bsize) < Math.max(2e9, Number(meta.filesize || meta.filesize_approx || 0) * 2)) {
           throw new Error('Not enough free disk space to download and process this video.');
         }
         await run(

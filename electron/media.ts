@@ -98,9 +98,9 @@ export async function render(runtime:string,source:string,plan:EditPlan,output:s
     const metadata=await probe(runtime,output,signal,24.8);
     if(metadata.width!==1080||metadata.height!==1920||metadata.videoCodec!=='h264'||metadata.audioCodec!=='aac'||metadata.duration<24.8||metadata.duration>95.0)throw new Error(`Rendered Reel failed export validation: ${metadata.duration.toFixed(2)}s (expected at least 25s)`);
   } finally {
+    await fs.unlink(ffscript).catch(()=>{});
     if (signal?.aborted) {
       await fs.unlink(subtitle).catch(()=>{});
-      await fs.unlink(ffscript).catch(()=>{});
       await fs.unlink(output).catch(()=>{});
     }
   }

@@ -50,7 +50,7 @@ app.whenReady().then(async()=>{
     }
     const blocked=[root,app.getAppPath(),path.dirname(process.execPath),app.getPath('sessionData')];
     if(!isAllowedOutputPath(file,root,blocked))return new Response('Not found',{status:404});
-    try{ return net.fetch(pathToFileURL(file).toString(),{headers:request.headers}); }catch{ return new Response('Not found',{status:404}); }
+    try{ return await net.fetch(pathToFileURL(file).toString(),{headers:request.headers}); }catch{ return new Response('Not found',{status:404}); }
   });
   const smoke=selfTest||!app.isPackaged&&process.env.REELMIND_SMOKE==='1';
   window=new BrowserWindow({width:1400,height:940,minWidth:1000,minHeight:740,show:!smoke,backgroundColor:'#faf6f0',title:'REELMIND',icon:path.join(app.getAppPath(),'assets/icon.png'),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,offscreen:smoke}});
